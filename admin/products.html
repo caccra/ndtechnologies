@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Manage Products — Admin — ND Electronic Technologies Ltd</title>
+<meta name="robots" content="noindex, nofollow" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../assets/styles.css" />
+<link rel="stylesheet" href="../assets/admin.css" />
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+<div class="admin-shell">
+  <div class="admin-topbar">
+    <a href="../index.html" class="brand" id="navBrand"></a>
+    <div class="admin-topbar-right">
+      <a href="products.html" style="color:var(--amber);font-size:13px;font-weight:600;text-decoration:none;">Products</a>
+      <a href="orders.html" style="color:rgba(255,255,255,.7);font-size:13px;font-weight:600;text-decoration:none;">Orders</a>
+      <span id="userEmail"></span>
+      <button id="signOutBtn" class="btn btn-outline-dark" style="padding:8px 16px;font-size:12.5px;">Sign Out</button>
+    </div>
+  </div>
+
+  <div class="admin-main">
+    <div class="admin-head">
+      <div>
+        <h1>Products</h1>
+        <p>Add, edit or hide items in the shop. Changes appear on the public shop page immediately.</p>
+      </div>
+    </div>
+
+    <div class="admin-layout">
+      <div class="admin-panel">
+        <h2 id="formTitle">Add a Product</h2>
+        <div class="admin-error" id="formError"></div>
+        <form id="productForm">
+          <input type="hidden" id="productId" />
+          <div class="admin-image-preview" id="imagePreview">No image selected</div>
+          <div class="form-group">
+            <label>Product Image</label>
+            <input type="file" id="imageFile" accept="image/*" />
+          </div>
+          <div class="form-group">
+            <label>Product Name *</label>
+            <input type="text" id="name" required placeholder="e.g. 4-Channel HD CCTV Kit" />
+          </div>
+          <div class="form-group">
+            <label>Description *</label>
+            <textarea id="description" required placeholder="What it is, what's included, key specs..."></textarea>
+          </div>
+          <div class="admin-form-row">
+            <div class="form-group">
+              <label>Price (UGX) *</label>
+              <input type="number" id="price" min="0" step="1000" required placeholder="e.g. 850000" />
+            </div>
+            <div class="form-group">
+              <label>Stock Qty *</label>
+              <input type="number" id="stock" min="0" step="1" required value="1" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Category *</label>
+            <select id="category" required>
+              <option value="CCTV">CCTV</option>
+              <option value="Solar">Solar &amp; Renewable Energy</option>
+              <option value="Carports">Carshades &amp; Carports</option>
+              <option value="Fire Suppression">Fire Suppression</option>
+              <option value="Networking">Networking</option>
+              <option value="Connectivity">Internet &amp; Connectivity</option>
+              <option value="Air Conditioning">Air Conditioning</option>
+              <option value="Electrical">Electrical</option>
+              <option value="General">General</option>
+            </select>
+          </div>
+          <div class="form-group" style="display:flex;align-items:center;gap:10px;">
+            <input type="checkbox" id="isActive" checked style="width:auto;" />
+            <label style="margin:0;text-transform:none;font-family:var(--font-body);font-size:13.5px;font-weight:500;color:var(--ink);">Visible in shop</label>
+          </div>
+          <div class="admin-form-actions">
+            <button type="submit" class="btn btn-primary" id="submitBtn">Add Product</button>
+            <button type="button" class="btn btn-outline-navy" id="cancelEditBtn" style="display:none;">Cancel</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="admin-panel">
+        <h2>All Products</h2>
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr><th>Image</th><th>Name</th><th>Price</th><th>Stock</th><th>Status</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="productsBody"></tbody>
+          </table>
+          <div class="admin-empty" id="emptyState" style="display:none;">No products yet — add your first one on the left.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="../assets/supabase-config.js"></script>
+<script>
+  let editingId = null;
+
+  (async function guard() {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) { window.location.href = 'login.html'; return; }
+    document.getElementById('userEmail').textContent = session.user.email;
+  })();
+
+  document.getElementById('signOutBtn').addEventListener('click', async () => {
+    await supabaseClient.auth.signOut();
+    window.location.href = 'login.html';
+  });
+
+  function ugx(n) { return 'UGX ' + Number(n).toLocaleString('en-UG'); }
+
+  async function loadProducts() {
+    const { data, error } = await supabaseClient
+      .from('products')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    const body = document.getElementById('productsBody');
+    const empty = document.getElementById('emptyState');
+    body.innerHTML = '';
+
+    if (error) { console.error(error); return; }
+    if (!data.length) { empty.style.display = 'block'; return; }
+    empty.style.display = 'none';
+
+    data.forEach((p) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${p.image_url ? `<img class="admin-thumb" src="${p.image_url}" alt="">` : `<div class="admin-thumb"></div>`}</td>
+        <td>${p.name}</td>
+        <td>${ugx(p.price)}</td>
+        <td>${p.stock}</td>
+        <td><span class="admin-status-pill ${p.is_active ? 'on' : 'off'}">${p.is_active ? 'Visible' : 'Hidden'}</span></td>
+        <td>
+          <div class="admin-row-actions">
+            <button data-action="edit" data-id="${p.id}">Edit</button>
+            <button data-action="delete" data-id="${p.id}" class="danger">Delete</button>
+          </div>
+        </td>`;
+      body.appendChild(tr);
+    });
+
+    body.querySelectorAll('button[data-action="edit"]').forEach(btn => {
+      btn.addEventListener('click', () => startEdit(btn.dataset.id, data));
+    });
+    body.querySelectorAll('button[data-action="delete"]').forEach(btn => {
+      btn.addEventListener('click', () => deleteProduct(btn.dataset.id));
+    });
+  }
+
+  function startEdit(id, list) {
+    const p = list.find(x => x.id === id);
+    if (!p) return;
+    editingId = id;
+    document.getElementById('formTitle').textContent = 'Edit Product';
+    document.getElementById('productId').value = p.id;
+    document.getElementById('name').value = p.name;
+    document.getElementById('description').value = p.description;
+    document.getElementById('price').value = p.price;
+    document.getElementById('stock').value = p.stock;
+    document.getElementById('category').value = p.category;
+    document.getElementById('isActive').checked = p.is_active;
+    document.getElementById('submitBtn').textContent = 'Save Changes';
+    document.getElementById('cancelEditBtn').style.display = 'inline-flex';
+    const preview = document.getElementById('imagePreview');
+    preview.innerHTML = p.image_url ? `<img src="${p.image_url}" alt="">` : 'No image selected';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  document.getElementById('cancelEditBtn').addEventListener('click', resetForm);
+
+  function resetForm() {
+    editingId = null;
+    document.getElementById('productForm').reset();
+    document.getElementById('productId').value = '';
+    document.getElementById('formTitle').textContent = 'Add a Product';
+    document.getElementById('submitBtn').textContent = 'Add Product';
+    document.getElementById('cancelEditBtn').style.display = 'none';
+    document.getElementById('imagePreview').innerHTML = 'No image selected';
+    document.getElementById('formError').style.display = 'none';
+  }
+
+  document.getElementById('imageFile').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      document.getElementById('imagePreview').innerHTML = `<img src="${ev.target.result}" alt="">`;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  async function deleteProduct(id) {
+    if (!confirm('Delete this product? This cannot be undone.')) return;
+    const { error } = await supabaseClient.from('products').delete().eq('id', id);
+    if (error) { alert('Could not delete: ' + error.message); return; }
+    loadProducts();
+  }
+
+  document.getElementById('productForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errorBox = document.getElementById('formError');
+    errorBox.style.display = 'none';
+    const submitBtn = document.getElementById('submitBtn');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Saving...';
+
+    try {
+      let imageUrl = editingId ? undefined : null;
+      const file = document.getElementById('imageFile').files[0];
+
+      if (file) {
+        const ext = file.name.split('.').pop();
+        const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+        const { error: uploadError } = await supabaseClient.storage
+          .from('product-images')
+          .upload(path, file);
+        if (uploadError) throw uploadError;
+        const { data: pub } = supabaseClient.storage.from('product-images').getPublicUrl(path);
+        imageUrl = pub.publicUrl;
+      }
+
+      const payload = {
+        name: document.getElementById('name').value.trim(),
+        description: document.getElementById('description').value.trim(),
+        price: Number(document.getElementById('price').value),
+        stock: Number(document.getElementById('stock').value),
+        category: document.getElementById('category').value,
+        is_active: document.getElementById('isActive').checked,
+      };
+      if (imageUrl !== undefined && imageUrl !== null) payload.image_url = imageUrl;
+
+      if (editingId) {
+        const { error } = await supabaseClient.from('products').update(payload).eq('id', editingId);
+        if (error) throw error;
+      } else {
+        payload.image_url = imageUrl;
+        const { error } = await supabaseClient.from('products').insert(payload);
+        if (error) throw error;
+      }
+
+      resetForm();
+      loadProducts();
+    } catch (err) {
+      errorBox.textContent = err.message || 'Something went wrong.';
+      errorBox.style.display = 'block';
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = editingId ? 'Save Changes' : 'Add Product';
+    }
+  });
+
+  loadProducts();
+</script>
+<script src="../assets/script.js" defer></script>
+</body>
+</html>

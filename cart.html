@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Your Cart — ND Electronic Technologies Ltd</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/styles.css" />
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://checkout.flutterwave.com/v3.js"></script>
+</head>
+<body data-page="shop">
+
+<nav id="navbar">
+  <a href="index.html" class="brand" id="navBrand"></a>
+  <ul class="nav-links">
+    <li><a href="index.html" data-nav="home">Home</a></li>
+    <li><a href="services.html" data-nav="services">Services</a></li>
+    <li><a href="shop.html" data-nav="shop">Shop</a></li>
+    <li><a href="about.html" data-nav="about">About</a></li>
+    <li><a href="contact.html" data-nav="contact">Contact</a></li>
+  </ul>
+  <div class="nav-right">
+    <a href="cart.html" class="cart-icon-link" aria-label="Cart">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M3 4h2l2.4 12.2a2 2 0 0 0 2 1.8h7.6a2 2 0 0 0 2-1.6L21 8H6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="10" cy="21" r="1.4" fill="currentColor"/><circle cx="17" cy="21" r="1.4" fill="currentColor"/></svg>
+      <span class="cart-badge" data-cart-count>0</span>
+    </a>
+    <a href="contact.html" class="btn btn-primary" style="padding:11px 20px;font-size:13.5px;">Request a Site Survey</a>
+  </div>
+  <button class="hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false">
+    <span></span><span></span><span></span>
+  </button>
+</nav>
+
+<div class="mobile-menu" id="mobileMenu">
+  <a href="index.html" data-nav="home">Home</a>
+  <a href="services.html" data-nav="services">Services</a>
+  <a href="shop.html" data-nav="shop">Shop</a>
+  <a href="about.html" data-nav="about">About</a>
+  <a href="contact.html" data-nav="contact">Contact</a>
+  <a href="cart.html">Cart (<span data-cart-count style="display:inline">0</span>)</a>
+  <a href="contact.html" class="btn btn-primary">Request a Site Survey</a>
+</div>
+
+<header class="page-header grid-tex-dark">
+  <div class="page-header-inner">
+    <div class="breadcrumb"><a href="index.html">Home</a><span class="sep">/</span><a href="shop.html">Shop</a><span class="sep">/</span><span>Cart</span></div>
+    <h1>Your <em>Cart</em></h1>
+  </div>
+</header>
+
+<section>
+  <div class="container">
+    <div id="cartContent"></div>
+  </div>
+</section>
+
+<footer style="margin-top:0;">
+  <div class="footer-grid">
+    <div class="footer-col">
+      <a href="index.html" class="footer-brand" id="footerBrand"></a>
+      <p>Integrated CCTV, solar power, carports, fire suppression, networking, connectivity, air conditioning and electrical engineering — installed and supported by one local team based in Lukuli, Nanganda.</p>
+      <div class="social-links">
+        <a href="https://www.facebook.com/cctvcamerass/" class="social-link" target="_blank" rel="noopener" aria-label="Facebook"><svg><use href="#ico-facebook"/></svg></a>
+        <a href="https://www.tiktok.com/@ndelectrictechnologies" class="social-link" target="_blank" rel="noopener" aria-label="TikTok"><svg><use href="#ico-tiktok"/></svg></a>
+      </div>
+    </div>
+    <div class="footer-col">
+      <h4>Services</h4>
+      <ul>
+        <li><a href="services/cctv-cameras.html">CCTV Cameras</a></li>
+        <li><a href="services/solar-power.html">Solar &amp; Renewable Energy</a></li>
+        <li><a href="services/fire-suppression.html">Fire Suppression</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>Company</h4>
+      <ul>
+        <li><a href="about.html">About Us</a></li>
+        <li><a href="shop.html">Shop</a></li>
+        <li><a href="contact.html">Contact</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>Contact</h4>
+      <ul>
+        <li><a href="tel:+256704399665">0704 399665</a></li>
+        <li><a href="mailto:info@ndelectronictech.com">info@ndelectronictech.com</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <span>© 2026 ND Electronic Technologies Ltd. All rights reserved.</span>
+    <span>Lukuli, Nanganda — Kampala, Uganda</span>
+  </div>
+</footer>
+
+<script src="assets/script.js" defer></script>
+<script src="assets/cart.js"></script>
+<script src="assets/supabase-config.js"></script>
+<script src="assets/flutterwave-config.js"></script>
+<script>
+  function renderCart() {
+    const cart = getCart();
+    const wrap = document.getElementById('cartContent');
+
+    if (!cart.length) {
+      wrap.innerHTML = `
+        <div class="cart-empty">
+          <p>Your cart is empty.</p>
+          <a href="shop.html" class="btn btn-primary">Browse the Shop →</a>
+        </div>`;
+      return;
+    }
+
+    const rows = cart.map(item => `
+      <tr>
+        <td>
+          <div class="cart-item-info">
+            <img class="cart-item-img" src="${item.image_url || ''}" alt="">
+            <div>
+              <div class="cart-item-name">${item.name}</div>
+              <button class="cart-remove" data-remove="${item.id}">Remove</button>
+            </div>
+          </div>
+        </td>
+        <td>${formatUGX(item.price)}</td>
+        <td>
+          <div class="qty-stepper">
+            <button type="button" data-minus="${item.id}">−</button>
+            <span>${item.qty}</span>
+            <button type="button" data-plus="${item.id}">+</button>
+          </div>
+        </td>
+        <td style="font-weight:700;">${formatUGX(item.price * item.qty)}</td>
+      </tr>
+    `).join('');
+
+    wrap.innerHTML = `
+      <div class="detail-grid">
+        <div>
+          <table class="cart-table">
+            <thead><tr>
+              <th style="text-align:left;font-family:var(--font-mono);font-size:10.5px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.8px;padding-bottom:10px;">Product</th>
+              <th style="text-align:left;font-family:var(--font-mono);font-size:10.5px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.8px;padding-bottom:10px;">Price</th>
+              <th style="text-align:left;font-family:var(--font-mono);font-size:10.5px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.8px;padding-bottom:10px;">Qty</th>
+              <th style="text-align:left;font-family:var(--font-mono);font-size:10.5px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.8px;padding-bottom:10px;">Total</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+
+        <aside class="sidebar">
+          <div class="cart-summary">
+            <div class="cart-summary-row"><span>Subtotal</span><span>${formatUGX(cartTotal())}</span></div>
+            <div class="cart-summary-row total"><span>Total</span><span>${formatUGX(cartTotal())}</span></div>
+          </div>
+
+          <div class="contact-form-wrap" style="padding:26px;">
+            <h3 style="font-size:16px;">Delivery Details</h3>
+            <p style="margin-bottom:18px;">We'll use this to arrange delivery once payment is confirmed.</p>
+            <div class="admin-error" id="checkoutError"></div>
+            <form id="checkoutForm">
+              <div class="form-group"><label>Full Name *</label><input type="text" id="custName" required /></div>
+              <div class="form-group"><label>Phone Number *</label><input type="tel" id="custPhone" required placeholder="+256 7__ ___ ___" /></div>
+              <div class="form-group"><label>Email</label><input type="email" id="custEmail" /></div>
+              <div class="form-group"><label>Delivery Address *</label><input type="text" id="custAddress" required placeholder="Area / landmark, Kampala" /></div>
+              <div class="form-group"><label>Notes</label><textarea id="custNotes" placeholder="Optional"></textarea></div>
+              <button type="submit" class="btn btn-primary" id="payBtn" style="width:100%;justify-content:center;">Pay ${formatUGX(cartTotal())}</button>
+            </form>
+          </div>
+        </aside>
+      </div>
+    `;
+
+    wrap.querySelectorAll('[data-remove]').forEach(btn => btn.addEventListener('click', () => { removeFromCart(btn.dataset.remove); renderCart(); }));
+    wrap.querySelectorAll('[data-plus]').forEach(btn => btn.addEventListener('click', () => {
+      const item = getCart().find(i => i.id === btn.dataset.plus);
+      updateCartQty(btn.dataset.plus, item.qty + 1);
+      renderCart();
+    }));
+    wrap.querySelectorAll('[data-minus]').forEach(btn => btn.addEventListener('click', () => {
+      const item = getCart().find(i => i.id === btn.dataset.minus);
+      updateCartQty(btn.dataset.minus, item.qty - 1);
+      renderCart();
+    }));
+
+    document.getElementById('checkoutForm').addEventListener('submit', handleCheckout);
+  }
+
+  async function handleCheckout(e) {
+    e.preventDefault();
+    const errorBox = document.getElementById('checkoutError');
+    errorBox.style.display = 'none';
+    const payBtn = document.getElementById('payBtn');
+    payBtn.disabled = true;
+    payBtn.textContent = 'Preparing payment...';
+
+    const cart = getCart();
+    const total = cartTotal();
+    const txRef = 'NDET-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);
+
+    const customer = {
+      name: document.getElementById('custName').value.trim(),
+      phone: document.getElementById('custPhone').value.trim(),
+      email: document.getElementById('custEmail').value.trim(),
+      address: document.getElementById('custAddress').value.trim(),
+      notes: document.getElementById('custNotes').value.trim(),
+    };
+
+    try {
+      const { data: order, error: orderError } = await supabaseClient.from('orders').insert({
+        customer_name: customer.name,
+        customer_phone: customer.phone,
+        customer_email: customer.email || null,
+        delivery_address: customer.address,
+        notes: customer.notes || null,
+        subtotal: total,
+        total: total,
+        currency: 'UGX',
+        status: 'pending',
+        payment_tx_ref: txRef,
+      }).select().single();
+      if (orderError) throw orderError;
+
+      const items = cart.map(item => ({
+        order_id: order.id,
+        product_id: item.id,
+        product_name: item.name,
+        unit_price: item.price,
+        quantity: item.qty,
+        line_total: item.price * item.qty,
+      }));
+      const { error: itemsError } = await supabaseClient.from('order_items').insert(items);
+      if (itemsError) throw itemsError;
+
+      payBtn.textContent = `Pay ${formatUGX(total)}`;
+      payBtn.disabled = false;
+
+      FlutterwaveCheckout({
+        public_key: FLW_PUBLIC_KEY,
+        tx_ref: txRef,
+        amount: total,
+        currency: 'UGX',
+        payment_options: 'card, mobilemoneyuganda, ussd',
+        customer: { email: customer.email || 'no-email@ndelectronictech.com', phone_number: customer.phone, name: customer.name },
+        customizations: {
+          title: 'ND Electronic Technologies Ltd',
+          description: 'Order ' + txRef,
+        },
+        callback: async function (payment) {
+          await fetch(`${SUPABASE_URL}/functions/v1/verify-payment`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tx_ref: txRef, transaction_id: payment.transaction_id }),
+          }).catch(() => {});
+          clearCart();
+          window.location.href = 'order-confirmed.html?ref=' + encodeURIComponent(txRef);
+        },
+        onclose: function () {
+          // Order stays "pending" — visible in the admin Orders page if the customer wants to retry/be followed up on.
+        },
+      });
+    } catch (err) {
+      errorBox.textContent = err.message || 'Something went wrong preparing your order.';
+      errorBox.style.display = 'block';
+      payBtn.disabled = false;
+      payBtn.textContent = `Pay ${formatUGX(total)}`;
+    }
+  }
+
+  renderCart();
+</script>
+</body>
+</html>
