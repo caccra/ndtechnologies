@@ -63,10 +63,12 @@ function formatUGX(n) {
 }
 
 function updateCartBadge() {
+  const count = cartCount();
   document.querySelectorAll('[data-cart-count]').forEach(el => {
-    const count = cartCount();
     el.textContent = count;
-    el.style.display = count > 0 ? 'inline-flex' : 'none';
+    if (el.classList.contains('cart-badge')) {
+      el.style.display = count > 0 ? 'inline-flex' : 'none';
+    }
   });
 }
 

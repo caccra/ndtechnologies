@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Admin Login — ND Electronic Technologies Ltd</title>
+<meta name="robots" content="noindex, nofollow" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/assets/styles.css" />
+<link rel="stylesheet" href="/assets/admin.css" />
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+<div class="admin-login-wrap">
+  <div class="admin-login-card">
+    <a href="/" class="brand" id="navBrand"></a>
+    <h1>Admin Login</h1>
+    <p>Sign in to manage products and orders.</p>
+    <div class="admin-error" id="loginError"></div>
+    <form id="loginForm">
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" id="email" required autocomplete="username" />
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="password" required autocomplete="current-password" />
+      </div>
+      <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;">Sign In</button>
+    </form>
+  </div>
+</div>
+
+<script src="/assets/script.js" defer></script>
+<script src="/assets/supabase-config.js"></script>
+<script>
+  (async function () {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (session) window.location.href = '/admin/products/';
+  })();
+
+  document.getElementById('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errorBox = document.getElementById('loginError');
+    errorBox.style.display = 'none';
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    if (error) {
+      errorBox.textContent = error.message;
+      errorBox.style.display = 'block';
+      return;
+    }
+    window.location.href = '/admin/products/';
+  });
+</script>
+</body>
+</html>

@@ -70,6 +70,29 @@
     <symbol id="ico-check" viewBox="0 0 24 24">
       <path d="M4 12.5 9.5 18 20 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
     </symbol>
+    <symbol id="ico-arrow-up" viewBox="0 0 24 24">
+      <path d="M12 19V5M5 12l7-7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="ico-gate" viewBox="0 0 24 24">
+      <path d="M2 20V6M22 20V6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+      <path d="M2 9h20M2 14h20" fill="none" stroke="currentColor" stroke-width="1.5"/>
+      <rect x="9" y="16.5" width="6" height="4" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/>
+    </symbol>
+    <symbol id="ico-fence" viewBox="0 0 24 24">
+      <path d="M4 5v15M12 5v15M20 5v15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+      <path d="M2 9h20M2 13h20M2 17h20" fill="none" stroke="currentColor" stroke-width="1.3" stroke-dasharray="1 2.6" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="ico-alarm" viewBox="0 0 24 24">
+      <path d="M12 3a5 5 0 0 0-5 5v3.5c0 1-.4 2-1.1 2.7L4.5 15.7c-.6.6-.2 1.8.7 1.8h13.6c.9 0 1.3-1.2.7-1.8l-1.4-1.5A3.8 3.8 0 0 1 17 11.5V8a5 5 0 0 0-5-5Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+      <path d="M9.5 19a2.5 2.5 0 0 0 5 0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="ico-access" viewBox="0 0 24 24">
+      <rect x="2" y="7" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/>
+      <circle cx="6.5" cy="12" r="1.6" fill="none" stroke="currentColor" stroke-width="1.4"/>
+      <path d="M10.5 9.5q1.5 2.5 0 5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+      <path d="M13 8q3 4 0 8" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+      <path d="M18 6q3 6 0 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+    </symbol>
     <symbol id="ico-facebook" viewBox="0 0 24 24">
       <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="1.6"/>
       <path d="M13.6 8.4h1.4V6.2h-1.7c-1.8 0-2.9 1.1-2.9 2.9v1.3H8.9v2.3h1.5v5.6h2.3v-5.6h1.7l.3-2.3h-2v-1c0-.6.2-1 .9-1Z" fill="currentColor"/>
@@ -80,34 +103,7 @@
     </symbol>
   </defs>`;
 
-  const LOGO_LIGHT = `
-  <svg viewBox="0 0 195 46" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-      <linearGradient id="ndGradA" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stop-color="#8fa8be"/><stop offset="35%" stop-color="#1565c0"/>
-        <stop offset="70%" stop-color="#0a1628"/><stop offset="100%" stop-color="#00b4d8"/>
-      </linearGradient>
-      <linearGradient id="swooshGradA" x1="0%" y1="50%" x2="100%" y2="50%">
-        <stop offset="0%" stop-color="#00b4d8" stop-opacity="0"/><stop offset="50%" stop-color="#00b4d8"/>
-        <stop offset="100%" stop-color="#1565c0" stop-opacity="0"/>
-      </linearGradient>
-    </defs>
-    <text x="2" y="34" font-family="Space Grotesk,Arial" font-weight="700" font-size="34" fill="url(#ndGradA)" letter-spacing="-2">N</text>
-    <text x="28" y="34" font-family="Space Grotesk,Arial" font-weight="700" font-size="34" fill="url(#ndGradA)" letter-spacing="-2">D</text>
-    <path d="M2 38 Q40 47 78 35" stroke="url(#swooshGradA)" stroke-width="2.4" fill="none" stroke-linecap="round"/>
-    <circle cx="30" cy="40" r="1.6" fill="#00b4d8"/><circle cx="50" cy="42" r="1.6" fill="#00b4d8"/>
-    <text x="84" y="20" font-family="Space Grotesk,Arial" font-weight="700" font-size="12.5" fill="#1565c0" letter-spacing="1">ELECTRONIC</text>
-    <text x="84" y="34" font-family="IBM Plex Mono,monospace" font-weight="600" font-size="9" fill="#8fa8be" letter-spacing="2.5">— TECHNOLOGIES —</text>
-  </svg>`;
-
-  function footerLogoVariant(svg) {
-    return svg
-      .replace(/#1565c0/g, '#00b4d8')
-      .replace(/#8fa8be/g, '#c7d3de')
-      .replace(/#0a1628/g, '#c7d3de')
-      .replace(/ndGradA/g, 'ndGradB')
-      .replace(/swooshGradA/g, 'swooshGradB');
-  }
+  const LOGO_IMG = '<img src="/assets/images/nd-electronic-logo.png" alt="ND Electronic Technologies Ltd" />';
 
   function init() {
     // icon sprite (hidden, reused via <use>)
@@ -121,9 +117,17 @@
 
     // logo injection
     const navBrand = document.getElementById('navBrand');
-    if (navBrand) navBrand.innerHTML = LOGO_LIGHT;
+    if (navBrand) navBrand.innerHTML = LOGO_IMG;
     const footerBrand = document.getElementById('footerBrand');
-    if (footerBrand) footerBrand.innerHTML = footerLogoVariant(LOGO_LIGHT);
+    if (footerBrand) footerBrand.innerHTML = LOGO_IMG;
+
+    // footer copyright year range (founded 2021 -> current year)
+    const copyrightEl = document.getElementById('copyrightYears');
+    if (copyrightEl) {
+      const startYear = 2021;
+      const currentYear = new Date().getFullYear();
+      copyrightEl.textContent = currentYear > startYear ? `${startYear}–${currentYear}` : `${startYear}`;
+    }
 
     // active nav link (set data-page="home|services|about|contact" on <body>)
     const page = document.body.getAttribute('data-page');
@@ -136,6 +140,20 @@
     // nav scroll shadow
     const navbar = document.getElementById('navbar');
     if (navbar) window.addEventListener('scroll', () => navbar.classList.toggle('scrolled', window.scrollY > 20));
+
+    // scroll-to-top button
+    const scrollTopBtn = document.createElement('button');
+    scrollTopBtn.className = 'scroll-top-btn';
+    scrollTopBtn.setAttribute('aria-label', 'Scroll to top');
+    scrollTopBtn.innerHTML = '<svg><use href="#ico-arrow-up"/></svg>';
+    document.body.appendChild(scrollTopBtn);
+    window.addEventListener('scroll', () => {
+      scrollTopBtn.classList.toggle('visible', window.scrollY > 400);
+    });
+    scrollTopBtn.addEventListener('click', () => {
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
+    });
 
     // hamburger
     const hamburger = document.getElementById('hamburger');

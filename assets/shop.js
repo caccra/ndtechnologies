@@ -21,6 +21,40 @@ async function loadShopProducts() {
   ALL_PRODUCTS = data;
   buildCategoryTabs();
   renderGrid();
+  injectProductListSchema();
+}
+
+function injectProductListSchema() {
+  const existing = document.getElementById('shopItemListSchema');
+  if (existing) existing.remove();
+  if (!ALL_PRODUCTS.length) return;
+
+  const script = document.createElement('script');
+  script.type = 'application/ld+json';
+  script.id = 'shopItemListSchema';
+  script.textContent = JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': 'ItemList',
+    itemListElement: ALL_PRODUCTS.map((p, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      url: 'https://ndelectronictechnologies.com/product/?id=' + p.id,
+      item: {
+        '@type': 'Product',
+        name: p.name,
+        image: p.image_url || undefined,
+        category: p.category || undefined,
+        url: 'https://ndelectronictechnologies.com/product/?id=' + p.id,
+        offers: {
+          '@type': 'Offer',
+          priceCurrency: 'UGX',
+          price: p.price,
+          availability: p.stock > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock'
+        }
+      }
+    }))
+  });
+  document.head.appendChild(script);
 }
 
 function buildCategoryTabs() {
@@ -53,12 +87,12 @@ function renderGrid() {
 
   grid.innerHTML = items.map(p => `
     <div class="shop-card">
-      <a href="product.html?id=${p.id}" class="shop-card-img">
+      <a href="/product/?id=${p.id}" class="shop-card-img">
         ${p.image_url ? `<img src="${p.image_url}" alt="${p.name}" loading="lazy" />` : `<div class="shop-card-noimg">No image</div>`}
       </a>
       <div class="shop-card-body">
         <span class="shop-card-cat">${p.category}</span>
-        <a href="product.html?id=${p.id}"><h3>${p.name}</h3></a>
+        <a href="/product/?id=${p.id}"><h3>${p.name}</h3></a>
         <p>${p.description}</p>
         <div class="shop-card-foot">
           <span class="shop-card-price">${formatUGX(p.price)}</span>

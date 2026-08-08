@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Product — ND Electronic Technologies Ltd</title>
+<meta name="description" content="Shop products from ND Electronic Technologies Ltd — CCTV kits, solar equipment, fire extinguishers and more, delivered in Kampala, Uganda." />
+<meta name="robots" content="index, follow" />
+<link rel="canonical" id="canonicalLink" href="https://ndelectronictechnologies.com/shop/" />
+<link rel="icon" type="image/png" href="/assets/images/nd-electronic-logo.png" />
+<link rel="apple-touch-icon" href="/assets/images/nd-electronic-logo.png" />
+<meta name="theme-color" content="#0a1628" />
+<meta property="og:type" content="product" />
+<meta property="og:site_name" content="ND Electronic Technologies Ltd" />
+<meta id="ogTitle" property="og:title" content="Product — ND Electronic Technologies Ltd" />
+<meta id="ogDescription" property="og:description" content="Shop products from ND Electronic Technologies Ltd — delivered in Kampala, Uganda." />
+<meta id="ogUrl" property="og:url" content="https://ndelectronictechnologies.com/shop/" />
+<meta id="ogImage" property="og:image" content="https://ndelectronictechnologies.com/assets/images/nd-electronic-logo.png" />
+<meta name="twitter:card" content="summary_large_image" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/assets/styles.css" />
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body data-page="shop">
+
+<nav id="navbar">
+  <a href="/" class="brand" id="navBrand"></a>
+  <ul class="nav-links">
+    <li><a href="/" data-nav="home">Home</a></li>
+    <li><a href="/services/" data-nav="services">Services</a></li>
+    <li><a href="/shop/" data-nav="shop">Shop</a></li>
+    <li><a href="/about/" data-nav="about">About</a></li>
+    <li><a href="/contact/" data-nav="contact">Contact</a></li>
+  </ul>
+  <div class="nav-right">
+    <a href="/cart/" class="cart-icon-link" aria-label="Cart">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M3 4h2l2.4 12.2a2 2 0 0 0 2 1.8h7.6a2 2 0 0 0 2-1.6L21 8H6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="10" cy="21" r="1.4" fill="currentColor"/><circle cx="17" cy="21" r="1.4" fill="currentColor"/></svg>
+      <span class="cart-badge" data-cart-count>0</span>
+    </a>
+    <a href="/contact/" class="btn btn-primary" style="padding:11px 20px;font-size:13.5px;">Request a Site Survey</a>
+  </div>
+  <button class="hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false">
+    <span></span><span></span><span></span>
+  </button>
+</nav>
+
+<div class="mobile-menu" id="mobileMenu">
+  <a href="/" data-nav="home">Home</a>
+  <a href="/services/" data-nav="services">Services</a>
+  <a href="/shop/" data-nav="shop">Shop</a>
+  <a href="/about/" data-nav="about">About</a>
+  <a href="/contact/" data-nav="contact">Contact</a>
+  <a href="/cart/">Cart (<span data-cart-count style="display:inline">0</span>)</a>
+  <a href="/contact/" class="btn btn-primary">Request a Site Survey</a>
+</div>
+
+<section style="padding-top:116px;">
+  <div class="container">
+    <div class="breadcrumb" style="color:var(--text-muted);margin-bottom:30px;">
+      <a href="/shop/" style="color:var(--text-muted);text-decoration:none;">Shop</a><span class="sep"> / </span><span id="crumbName">Product</span>
+    </div>
+    <div id="productWrap"></div>
+  </div>
+</section>
+
+<footer style="margin-top:60px;">
+  <div class="footer-grid">
+    <div class="footer-col">
+      <a href="/" class="footer-brand" id="footerBrand"></a>
+      <p>Integrated CCTV, solar power, carports, fire suppression, networking, connectivity, air conditioning and electrical engineering — installed and supported by one local team based in Lukuli, Nanganda.</p>
+      <div class="social-links">
+        <a href="https://www.facebook.com/cctvcamerass/" class="social-link" target="_blank" rel="noopener" aria-label="Facebook"><svg><use href="#ico-facebook"/></svg></a>
+        <a href="https://www.tiktok.com/@ndelectrictechnologies" class="social-link" target="_blank" rel="noopener" aria-label="TikTok"><svg><use href="#ico-tiktok"/></svg></a>
+      </div>
+    </div>
+    <div class="footer-col">
+      <h4>Company</h4>
+      <ul>
+        <li><a href="/about/">About Us</a></li>
+        <li><a href="/shop/">Shop</a></li>
+        <li><a href="/contact/">Contact</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>Contact</h4>
+      <ul>
+        <li><a href="tel:+256704399665">0704 399665</a></li>
+        <li><a href="mailto:info@ndelectronictechnologies.com">info@ndelectronictechnologies.com</a><a href="mailto:sales@ndelectronictechnologies.com">sales@ndelectronictechnologies.com</a><a href="mailto:ndtechnologiesltd@gmail.com">ndtechnologiesltd@gmail.com</a></li>
+        <li><a href="/contact/">BNK Building, Level 2, Lukuli-Nanganda Road, Kampala - Uganda</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <span>© <span id="copyrightYears">2021–2026</span> ND Electronic Technologies Ltd. All rights reserved.</span>
+    <span>Lukuli, Nanganda — Kampala, Uganda</span>
+  </div>
+</footer>
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "HomeAndConstructionBusiness",
+  "@id": "https://ndelectronictechnologies.com/#organization",
+  "name": "ND Electronic Technologies Ltd",
+  "url": "https://ndelectronictechnologies.com/",
+  "logo": "https://ndelectronictechnologies.com/assets/images/nd-electronic-logo.png",
+  "image": "https://ndelectronictechnologies.com/assets/images/nd-electronic-logo.png",
+  "telephone": "+256-704-399665",
+  "email": "info@ndelectronictechnologies.com",
+  "priceRange": "$$",
+  "address": { "@type": "PostalAddress", "streetAddress": "BNK Building, 2nd Floor, Lukuli–Nanganda Road", "addressLocality": "Kampala", "addressRegion": "Makindye Division", "addressCountry": "UG" },
+  "sameAs": ["https://www.facebook.com/cctvcamerass/", "https://www.tiktok.com/@ndelectrictechnologies"]
+}
+</script>
+<a href="https://wa.me/256704399665" class="whatsapp-float" target="_blank" rel="noopener" aria-label="Chat with us on WhatsApp">
+  <svg><use href="#ico-whatsapp"/></svg>
+</a>
+
+<script src="/assets/script.js" defer></script>
+<script src="/assets/cart.js"></script>
+<script src="/assets/supabase-config.js"></script>
+<script>
+  let currentProduct = null;
+  let qty = 1;
+
+  async function loadProduct() {
+    const id = new URLSearchParams(window.location.search).get('id');
+    const wrap = document.getElementById('productWrap');
+    if (!id) { wrap.innerHTML = '<p>Product not found.</p>'; return; }
+
+    const { data, error } = await supabaseClient.from('products').select('*').eq('id', id).single();
+    if (error || !data) { wrap.innerHTML = '<p>Product not found.</p>'; return; }
+
+    currentProduct = data;
+    document.getElementById('crumbName').textContent = data.name;
+    document.title = data.name + ' — ND Electronic Technologies Ltd';
+
+    const pageUrl = 'https://ndelectronictechnologies.com/product/?id=' + data.id;
+    const ogDesc = (data.description || '').slice(0, 200);
+    document.getElementById('canonicalLink').href = pageUrl;
+    document.querySelector('meta[name="description"]').setAttribute('content', ogDesc);
+    document.getElementById('ogTitle').setAttribute('content', data.name + ' — ND Electronic Technologies Ltd');
+    document.getElementById('ogDescription').setAttribute('content', ogDesc);
+    document.getElementById('ogUrl').setAttribute('content', pageUrl);
+    if (data.image_url) document.getElementById('ogImage').setAttribute('content', data.image_url);
+
+    const productLd = document.createElement('script');
+    productLd.type = 'application/ld+json';
+    productLd.textContent = JSON.stringify({
+      '@context': 'https://schema.org',
+      '@type': 'Product',
+      name: data.name,
+      description: data.description || undefined,
+      image: data.image_url || undefined,
+      category: data.category || undefined,
+      url: pageUrl,
+      brand: { '@type': 'Brand', name: 'ND Electronic Technologies Ltd' },
+      offers: {
+        '@type': 'Offer',
+        priceCurrency: 'UGX',
+        price: data.price,
+        availability: data.stock > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+        url: pageUrl,
+        seller: { '@type': 'Organization', name: 'ND Electronic Technologies Ltd' }
+      }
+    });
+    document.head.appendChild(productLd);
+
+    const breadcrumbLd = document.createElement('script');
+    breadcrumbLd.type = 'application/ld+json';
+    breadcrumbLd.textContent = JSON.stringify({
+      '@context': 'https://schema.org',
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://ndelectronictechnologies.com/' },
+        { '@type': 'ListItem', position: 2, name: 'Shop', item: 'https://ndelectronictechnologies.com/shop/' },
+        { '@type': 'ListItem', position: 3, name: data.name, item: pageUrl }
+      ]
+    });
+    document.head.appendChild(breadcrumbLd);
+
+    wrap.innerHTML = `
+      <div class="product-detail-grid">
+        <div class="product-detail-img">
+          ${data.image_url ? `<img src="${data.image_url}" alt="${data.name}">` : ''}
+        </div>
+        <div class="product-detail-info">
+          <div class="product-detail-cat">${data.category}</div>
+          <h1>${data.name}</h1>
+          <div class="product-detail-price">${formatUGX(data.price)}</div>
+          <p class="desc">${data.description}</p>
+          <div class="qty-row">
+            <div class="qty-stepper">
+              <button type="button" id="qtyMinus">−</button>
+              <span id="qtyVal">1</span>
+              <button type="button" id="qtyPlus">+</button>
+            </div>
+            <span class="stock-note">${data.stock > 0 ? data.stock + ' in stock' : 'Out of stock'}</span>
+          </div>
+          <button class="btn btn-primary" id="addBtn" style="width:100%;justify-content:center;" ${data.stock < 1 ? 'disabled' : ''}>
+            ${data.stock < 1 ? 'Out of Stock' : 'Add to Cart'}
+          </button>
+        </div>
+      </div>
+    `;
+
+    document.getElementById('qtyMinus').addEventListener('click', () => {
+      qty = Math.max(1, qty - 1);
+      document.getElementById('qtyVal').textContent = qty;
+    });
+    document.getElementById('qtyPlus').addEventListener('click', () => {
+      qty = Math.min(data.stock || 99, qty + 1);
+      document.getElementById('qtyVal').textContent = qty;
+    });
+    document.getElementById('addBtn').addEventListener('click', () => {
+      addToCart(currentProduct, qty);
+      const btn = document.getElementById('addBtn');
+      btn.textContent = 'Added to cart ✓';
+      setTimeout(() => { btn.textContent = 'Add to Cart'; }, 1200);
+    });
+  }
+
+  loadProduct();
+</script>
+</body>
+</html>
