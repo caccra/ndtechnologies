@@ -33,14 +33,14 @@
   --text-body: var(--ink-2);
   --text-muted: #788492;
 
-  --radius: 8px;
-  --radius-lg: 14px;
+  --radius: 0px;
+  --radius-lg: 0px;
   --shadow-md: 0 10px 30px rgba(10, 22, 40, .10);
   --shadow-lg: 0 24px 60px rgba(10, 22, 40, .20);
 
-  --font-display: 'Space Grotesk', sans-serif;
-  --font-body: 'Inter', sans-serif;
-  --font-mono: 'IBM Plex Mono', monospace;
+  --font-display: 'Jost', sans-serif;
+  --font-body: 'Jost', sans-serif;
+  --font-mono: 'Poppins', sans-serif;
 }
 
 html {

@@ -118,10 +118,3 @@ document.addEventListener('DOMContentLoaded', loadShopProducts);
 import { createClient } from "@supabase/supabase-js";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-//new line
-const { data } = supabase
-  .storage
-  .from("product-images")
-  .getPublicUrl("products/123/main.jpg");
-
-console.log(data.publicUrl); // <-- use this as <img src="...">
