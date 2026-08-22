@@ -1,12 +1,13 @@
 # Shop Setup Guide
 
-This site now has a shop: customers can browse products, pay online, and you manage
-everything from an admin panel at `/admin/`. None of it works yet — it needs two free
-accounts connected first. This takes about 20–30 minutes.
+This site now has a shop: customers can browse products, verify their email address,
+pay online or choose Cash on Delivery, and you manage everything from an admin panel
+at `/admin/`. None of it works yet — it needs two free accounts connected first. This
+takes about 20–30 minutes.
 
 ## What you're connecting
 
-- **Supabase** — the database that stores your products and orders, plus the admin login.
+- **Supabase** — the database that stores your products and orders, the admin login, and the customer email-verification codes sent at checkout (Supabase sends these itself — no separate email service needed to get started).
 - **Flutterwave** — the payment processor that accepts Mobile Money (MTN/Airtel) and cards.
 
 Both have free tiers that comfortably cover a small business shop.
@@ -52,7 +53,28 @@ You can now open `admin/login.html`, sign in, and add products. Product photos y
 
 ---
 
-## 3. Deploy the payment verification function
+## 3. Email verification at checkout — works out of the box
+
+Before paying, customers verify their email with a 6-digit code — this catches
+typos/fake addresses before you commit to delivering an order. It's built on
+Supabase's built-in email OTP (`assets/checkout.js`), which needs no extra setup:
+Supabase's default email sender starts working the moment your project exists.
+
+That default sender is rate-limited (a handful of emails per hour) and meant for
+testing, not real customer traffic. Before going live, connect a real email
+provider so codes actually reach every customer:
+
+1. In Supabase: **Project Settings → Authentication → SMTP Settings** → enable **Custom SMTP**.
+2. Fill in credentials from an email-sending service — [Resend](https://resend.com), [Brevo](https://www.brevo.com), or [SendGrid](https://sendgrid.com) all have free tiers that comfortably cover a small shop's order volume.
+3. Save, then send yourself a test checkout to confirm the code arrives.
+
+Notes:
+- While testing with the default sender, verification codes only land reliably in the inbox you signed up to Supabase with — some providers also rate-limit or delay mail to other addresses.
+- The verification code is a one-off contact check, not a customer login — no passwords, no account dashboard. The session it briefly creates is discarded right after verifying, so it never gains admin-level access to your Supabase data.
+
+---
+
+## 4. Deploy the payment verification function
 
 Why this step exists: when Flutterwave's payment popup closes, the browser says
 "payment succeeded" — but a browser can be tampered with, so we don't trust that
@@ -77,12 +99,15 @@ as paid. This function lives in `supabase/functions/verify-payment/`.
 
 ---
 
-## 4. Test it end-to-end
+## 5. Test it end-to-end
 
 1. Add a product in `admin/products.html`.
-2. Open `shop.html`, add it to your cart, go to `cart.html`, fill in the checkout form.
-3. In the Flutterwave popup, use one of their [test cards/test Mobile Money numbers](https://developer.flutterwave.com/docs/integration-guides/testing-helpers) (only works while your keys are in Test Mode).
-4. After a successful test payment, check `admin/orders.html` — the order should show status **paid** within a few seconds.
+2. Open `shop.html`, add it to your cart, go to `cart.html`, and fill in the delivery details.
+3. Enter the 6-digit code sent to your email (while on the default Supabase sender, check the inbox you signed up to Supabase with).
+4. Pick a payment method:
+   - **Cash on Delivery** — skips online payment entirely; the order is created and shows up in `admin/orders.html` as pending, ready to mark **Fulfilled** once delivered and paid.
+   - **Mobile Money / Card** — the Flutterwave popup opens. Use one of their [test cards/test Mobile Money numbers](https://developer.flutterwave.com/docs/integration-guides/testing-helpers) (only works while your keys are in Test Mode).
+5. After a successful test payment, check `admin/orders.html` — the order should show status **paid** within a few seconds.
 
 Once you're happy, switch `assets/flutterwave-config.js` and the Edge Function's
 `FLW_SECRET_KEY` secret to your **live** keys (after Flutterwave finishes verifying
@@ -97,11 +122,13 @@ your business) and you're accepting real payments.
 | Product/order database, admin login | Supabase (cloud, free tier) |
 | Product photos | Supabase Storage (`product-images` bucket) |
 | Admin panel | `/admin/login.html`, `/admin/products.html`, `/admin/orders.html` |
-| Public shop | `/shop.html`, `/product.html`, `/cart.html` |
-| Payment | Flutterwave (Mobile Money + cards) |
+| Public shop & checkout | `/shop.html`, `/product.html`, `/cart.html` (`assets/checkout.js`) |
+| Email verification (OTP) | Supabase Auth (built-in, or Custom SMTP for production) |
+| Payment | Flutterwave (Mobile Money + cards) or Cash on Delivery |
 | Payment verification | Supabase Edge Function, `supabase/functions/verify-payment` |
 
 ## Costs
 
 - Supabase free tier: enough for a small shop (500MB database, 1GB file storage, 50k monthly active users). No card required to start.
 - Flutterwave: no monthly fee, they take a percentage per successful transaction (check their current Uganda pricing on their site — it changes).
+- Email sending (Resend/Brevo/SendGrid): free tiers cover thousands of emails a month, comfortably enough for verification codes at small-shop volume. Cash on Delivery orders don't need Flutterwave at all, just email verification.

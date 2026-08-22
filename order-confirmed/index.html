@@ -46,7 +46,7 @@
     <div class="eyebrow" style="justify-content:center;display:inline-block;">Order Received</div>
     <h1 class="section-title">Thank you — your order is in.</h1>
     <p class="section-sub" style="margin:0 auto 8px;">Reference: <strong id="refText">—</strong></p>
-    <p class="section-sub" style="margin:0 auto 32px;">We're confirming your payment now. You'll be contacted on the phone number you provided to arrange delivery.</p>
+    <p class="section-sub" style="margin:0 auto 32px;" id="confirmText">We're confirming your payment now. You'll be contacted on the phone number you provided to arrange delivery.</p>
     <a href="/shop/" class="btn btn-primary">Continue Shopping →</a>
   </div>
 </section>
@@ -64,8 +64,13 @@
 
 <script src="/assets/script.js" defer></script>
 <script>
-  const ref = new URLSearchParams(window.location.search).get('ref');
+  const params = new URLSearchParams(window.location.search);
+  const ref = params.get('ref');
   if (ref) document.getElementById('refText').textContent = ref;
+  if (params.get('method') === 'cod') {
+    document.getElementById('confirmText').textContent =
+      'Your order is confirmed for Cash on Delivery. Please have the exact amount ready — you’ll be contacted on the phone number you provided to arrange delivery.';
+  }
 </script>
 </body>
 </html>

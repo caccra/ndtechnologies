@@ -2099,6 +2099,219 @@ nav.scrolled {
   margin-bottom: 24px;
 }
 
+/* ══════════════════ CHECKOUT STEPPER ══════════════════ */
+.checkout-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.checkout-step-label {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--amber-dark);
+  margin-bottom: 8px;
+}
+
+.checkout-step.done {
+  background: var(--white);
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 16px 20px;
+}
+
+.checkout-step-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.checkout-step-num {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--amber-light);
+  color: var(--amber-dark);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.checkout-step-num svg {
+  width: 14px;
+  height: 14px;
+}
+
+.checkout-step-head > div:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.checkout-step-head strong {
+  font-size: 13.5px;
+}
+
+.checkout-step-head span {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.checkout-edit {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .5px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  text-decoration: underline;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.checkout-edit:hover {
+  color: var(--ink);
+}
+
+.otp-boxes {
+  display: flex;
+  gap: 8px;
+}
+
+.otp-box {
+  width: 100%;
+  aspect-ratio: 1;
+  text-align: center;
+  font-size: 20px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink);
+  outline: none;
+  transition: border-color .2s, box-shadow .2s;
+}
+
+.otp-box:focus {
+  border-color: var(--amber-dark);
+  box-shadow: 0 0 0 3px var(--amber-light);
+  background: var(--white);
+}
+
+.checkout-otp-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 16px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.checkout-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 12.5px;
+  font-family: var(--font-body);
+  color: var(--text-muted);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.checkout-link:hover:not(:disabled) {
+  color: var(--ink);
+}
+
+.checkout-link:disabled {
+  cursor: default;
+  opacity: .6;
+  text-decoration: none;
+}
+
+.payment-methods {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.payment-method-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: border-color .2s, background .2s;
+}
+
+.payment-method-card:hover {
+  border-color: var(--amber-dark);
+}
+
+.payment-method-card.selected {
+  border-color: var(--amber-dark);
+  background: var(--amber-light);
+}
+
+.payment-method-card input[type="radio"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--amber-dark);
+  flex-shrink: 0;
+}
+
+.payment-method-card svg {
+  width: 22px;
+  height: 22px;
+  color: var(--ink);
+  flex-shrink: 0;
+}
+
+.payment-method-card > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.payment-method-card strong {
+  font-size: 14px;
+}
+
+.payment-method-card span {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.checkout-trust-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 16px;
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.checkout-trust-note svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--amber-dark);
+}
+
 /* ══════════════════ FOOTER — brand bookend #2 ══════════════════ */
 footer {
   background: var(--navy);
@@ -2110,7 +2323,7 @@ footer {
   max-width: 1180px;
   margin: 0 auto;
   display: grid;
-  grid-template-columns: 1.6fr 1fr 1fr;
+  grid-template-columns: 1.4fr 1.1fr 1fr;
   gap: 44px;
   padding-bottom: 40px;
   border-bottom: 1px solid rgba(255, 255, 255, .1);

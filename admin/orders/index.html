@@ -36,7 +36,7 @@
       <div class="admin-table-wrap">
         <table class="admin-table admin-orders-table">
           <thead>
-            <tr><th>Date</th><th>Customer</th><th>Phone</th><th>Items</th><th>Total</th><th>Status</th><th>Actions</th></tr>
+            <tr><th>Date</th><th>Customer</th><th>Phone</th><th>Items</th><th>Total</th><th>Payment</th><th>Status</th><th>Actions</th></tr>
           </thead>
           <tbody id="ordersBody"></tbody>
         </table>
@@ -61,6 +61,7 @@
 
   function ugx(n) { return 'UGX ' + Number(n).toLocaleString('en-UG'); }
   function fmtDate(iso) { return new Date(iso).toLocaleString('en-UG', { dateStyle: 'medium', timeStyle: 'short' }); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
   async function loadOrders() {
     const { data: orders, error } = await supabaseClient
@@ -77,18 +78,21 @@
     empty.style.display = 'none';
 
     orders.forEach((o) => {
-      const items = (o.order_items || []).map(i => `${i.product_name} ×${i.quantity}`).join(', ');
+      const items = (o.order_items || []).map(i => `${esc(i.product_name)} ×${i.quantity}`).join(', ');
+      const isCod = o.payment_provider === 'cod';
+      const canFulfill = o.status === 'paid' || (isCod && o.status === 'pending');
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${fmtDate(o.created_at)}</td>
-        <td>${o.customer_name}</td>
-        <td><a href="tel:${o.customer_phone}">${o.customer_phone}</a></td>
+        <td>${esc(o.customer_name)}</td>
+        <td><a href="tel:${esc(o.customer_phone)}">${esc(o.customer_phone)}</a></td>
         <td>${items || '—'}</td>
         <td class="total">${ugx(o.total)}</td>
+        <td><span class="admin-status-pill ${isCod ? 'off' : 'on'}">${isCod ? 'Cash on Delivery' : 'Online'}</span></td>
         <td><span class="order-status ${o.status}">${o.status}</span></td>
         <td>
           <div class="admin-row-actions">
-            ${o.status === 'paid' ? `<button data-action="fulfill" data-id="${o.id}">Mark Fulfilled</button>` : ''}
+            ${canFulfill ? `<button data-action="fulfill" data-id="${o.id}">Mark Fulfilled</button>` : ''}
           </div>
         </td>`;
       body.appendChild(tr);

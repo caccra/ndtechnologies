@@ -34,12 +34,16 @@ create table if not exists orders (
   currency text not null default 'UGX',
   status text not null default 'pending'               -- pending | paid | failed | fulfilled | cancelled
     check (status in ('pending','paid','failed','fulfilled','cancelled')),
-  payment_provider text default 'flutterwave',
+  payment_provider text default 'flutterwave',           -- 'flutterwave' (card/mobile money) or 'cod' (cash on delivery)
   payment_tx_ref text unique,                            -- our generated reference, sent to Flutterwave
   payment_flw_id text,                                   -- Flutterwave's transaction id, filled in after verification
+  email_verified boolean not null default false,          -- customer completed email OTP verification at checkout
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table orders add column if not exists payment_provider text default 'flutterwave';
+alter table orders add column if not exists email_verified boolean not null default false;
 
 create index if not exists orders_status_idx on orders (status);
 create index if not exists orders_tx_ref_idx on orders (payment_tx_ref);

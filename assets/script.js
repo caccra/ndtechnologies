@@ -101,6 +101,20 @@
       <path d="M14 3v10.6a3 3 0 1 1-2-2.83V3h2Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
       <path d="M14 3.3c.3 2.2 1.9 3.8 4 4.1" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
     </symbol>
+    <symbol id="ico-cash" viewBox="0 0 24 24">
+      <rect x="2" y="6" width="20" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/>
+      <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.6"/>
+      <path d="M5.5 6v12M18.5 6v12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-dasharray="1.4 1.8"/>
+    </symbol>
+    <symbol id="ico-card" viewBox="0 0 24 24">
+      <rect x="2" y="5" width="20" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/>
+      <path d="M2 9.5h20" fill="none" stroke="currentColor" stroke-width="1.7"/>
+      <path d="M5 14.5h5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="ico-shield" viewBox="0 0 24 24">
+      <path d="M12 3.5 19 6v5.5c0 4.6-3 7.7-7 9-4-1.3-7-4.4-7-9V6l7-2.5Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+      <path d="M9 12.2 11.2 14.5 15.5 9.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
   </defs>`;
 
   const LOGO_IMG = '<img src="/assets/images/nd-electronic-logo.png" alt="ND Electronic Technologies Ltd" />';
