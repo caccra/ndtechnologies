@@ -23,6 +23,7 @@ async function loadShopProducts() {
   // downstream needs a consistent type regardless of whether the products
   // table uses uuid or integer ids.
   ALL_PRODUCTS = data.map(p => ({ ...p, id: String(p.id) }));
+  await loadWishlistIds();
   buildCategoryTabs();
   renderGrid();
   injectProductListSchema();
@@ -91,9 +92,12 @@ function renderGrid() {
 
   grid.innerHTML = items.map(p => `
     <div class="shop-card">
-      <a href="/product/?id=${p.id}" class="shop-card-img">
-        ${p.image_url ? `<img src="${p.image_url}" alt="${p.name}" loading="lazy" />` : `<div class="shop-card-noimg">No image</div>`}
-      </a>
+      <div class="shop-card-media">
+        <a href="/product/?id=${p.id}" class="shop-card-img">
+          ${p.image_url ? `<img src="${p.image_url}" alt="${p.name}" loading="lazy" />` : `<div class="shop-card-noimg">No image</div>`}
+        </a>
+        ${wishlistButtonHtml(p.id)}
+      </div>
       <div class="shop-card-body">
         <span class="shop-card-cat">${p.category}</span>
         <a href="/product/?id=${p.id}"><h3>${p.name}</h3></a>
@@ -116,6 +120,8 @@ function renderGrid() {
       setTimeout(() => { btn.textContent = 'Add to Cart'; }, 1200);
     });
   });
+
+  bindWishlistButtons(grid);
 }
 
 document.addEventListener('DOMContentLoaded', loadShopProducts);

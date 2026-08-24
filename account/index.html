@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>My Account — ND Electronic Technologies Ltd</title>
+<link rel="canonical" href="https://ndelectronictechnologies.com/account/" />
+<meta name="robots" content="noindex, nofollow" />
+<link rel="icon" type="image/png" href="/assets/images/nd-electronic-logo.png" />
+<link rel="apple-touch-icon" href="/assets/images/nd-electronic-logo.png" />
+<meta name="theme-color" content="#0a1628" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Poppins:wght@500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/assets/styles.css" />
+<link rel="stylesheet" href="/assets/admin.css" />
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body data-page="account">
+
+<nav id="navbar">
+  <a href="/" class="brand" id="navBrand"></a>
+  <ul class="nav-links">
+    <li><a href="/" data-nav="home">Home</a></li>
+    <li><a href="/services/" data-nav="services">Services</a></li>
+    <li><a href="/shop/" data-nav="shop">Shop</a></li>
+    <li><a href="/about/" data-nav="about">About</a></li>
+    <li><a href="/contact/" data-nav="contact">Contact</a></li>
+  </ul>
+  <div class="nav-right">
+    <a href="/account/" class="account-icon-link" aria-label="Account"><svg><use href="#ico-user"/></svg></a>
+    <a href="/cart/" class="cart-icon-link" aria-label="Cart">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M3 4h2l2.4 12.2a2 2 0 0 0 2 1.8h7.6a2 2 0 0 0 2-1.6L21 8H6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="10" cy="21" r="1.4" fill="currentColor"/><circle cx="17" cy="21" r="1.4" fill="currentColor"/></svg>
+      <span class="cart-badge" data-cart-count>0</span>
+    </a>
+    <a href="/contact/" class="btn btn-primary" style="padding:11px 20px;font-size:13.5px;">Request a Site Survey</a>
+  </div>
+  <button class="hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false">
+    <span></span><span></span><span></span>
+  </button>
+</nav>
+
+<div class="mobile-menu" id="mobileMenu">
+  <a href="/" data-nav="home">Home</a>
+  <a href="/services/" data-nav="services">Services</a>
+  <a href="/shop/" data-nav="shop">Shop</a>
+  <a href="/about/" data-nav="about">About</a>
+  <a href="/contact/" data-nav="contact">Contact</a>
+  <a href="/account/">My Account</a>
+  <a href="/cart/">Cart (<span data-cart-count style="display:inline">0</span>)</a>
+  <a href="/contact/" class="btn btn-primary">Request a Site Survey</a>
+</div>
+
+<header class="page-header grid-tex-dark">
+  <div class="page-header-inner">
+    <div class="breadcrumb"><a href="/">Home</a><span class="sep">/</span><span>My Account</span></div>
+    <h1>My <em>Account</em></h1>
+  </div>
+</header>
+
+<section>
+  <div class="container">
+    <div class="dashboard-shell">
+      <nav class="dashboard-nav">
+        <button type="button" data-section="orders"><svg><use href="#ico-cash"/></svg>Orders</button>
+        <button type="button" data-section="inbox"><svg><use href="#ico-mail"/></svg>Inbox</button>
+        <button type="button" data-section="wishlist"><svg><use href="#ico-heart"/></svg>Wishlist</button>
+        <button type="button" data-section="reviews"><svg><use href="#ico-star"/></svg>Ratings &amp; Reviews</button>
+        <button type="button" data-section="payments"><svg><use href="#ico-card"/></svg>Payment History</button>
+        <button type="button" data-section="addresses"><svg><use href="#ico-pin"/></svg>Address Book</button>
+        <button type="button" data-section="account"><svg><use href="#ico-user"/></svg>Account</button>
+        <button type="button" data-section="help"><svg><use href="#ico-phone"/></svg>Help &amp; FAQs</button>
+        <button type="button" id="sidebarSignOutBtn" class="danger"><svg><use href="#ico-arrow-up"/></svg>Logout</button>
+      </nav>
+
+      <div>
+        <!-- ORDERS -->
+        <div class="dashboard-section" id="section-orders">
+          <div class="dashboard-section-head"><h2>Orders</h2><p>Everything you've bought, most recent first.</p></div>
+          <div class="account-orders" id="ordersWrap"><p style="color:var(--text-muted);font-size:13.5px;">Loading…</p></div>
+        </div>
+
+        <!-- INBOX -->
+        <div class="dashboard-section" id="section-inbox">
+          <div class="dashboard-section-head"><h2>Inbox</h2><p>Updates about your orders as they happen.</p></div>
+          <div class="account-orders" id="inboxWrap"><p style="color:var(--text-muted);font-size:13.5px;">Loading…</p></div>
+        </div>
+
+        <!-- WISHLIST -->
+        <div class="dashboard-section" id="section-wishlist">
+          <div class="dashboard-section-head"><h2>Wishlist</h2><p>Products you've saved for later.</p></div>
+          <div class="shop-grid" id="wishlistWrap"><p style="color:var(--text-muted);font-size:13.5px;">Loading…</p></div>
+        </div>
+
+        <!-- RATINGS & REVIEWS -->
+        <div class="dashboard-section" id="section-reviews">
+          <div class="dashboard-section-head"><h2>Ratings &amp; Reviews</h2><p>Reviews you've left on products.</p></div>
+          <div style="display:flex;flex-direction:column;gap:14px;" id="reviewsWrap"><p style="color:var(--text-muted);font-size:13.5px;">Loading…</p></div>
+        </div>
+
+        <!-- PAYMENT HISTORY -->
+        <div class="dashboard-section" id="section-payments">
+          <div class="dashboard-section-head"><h2>Payment History</h2><p>Every transaction tied to your orders.</p></div>
+          <div class="admin-table-wrap" style="background:var(--white);border:1.5px solid var(--line);border-radius:var(--radius-lg);padding:6px 20px;">
+            <table class="admin-table" id="paymentsTable">
+              <thead><tr><th>Date</th><th>Reference</th><th>Method</th><th>Amount</th><th>Status</th></tr></thead>
+              <tbody id="paymentsBody"><tr><td colspan="5" style="color:var(--text-muted);">Loading…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ADDRESS BOOK -->
+        <div class="dashboard-section" id="section-addresses">
+          <div class="dashboard-section-head"><h2>Address Book</h2><p>Saved addresses used to speed up checkout.</p></div>
+          <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:20px;" id="addressesWrap"><p style="color:var(--text-muted);font-size:13.5px;">Loading…</p></div>
+          <button type="button" class="btn btn-outline-navy" id="addAddressBtn">+ Add Address</button>
+          <form id="addressForm" style="display:none;margin-top:16px;max-width:440px;" class="contact-form-wrap">
+            <div class="admin-error" id="addressError" style="display:none;background:#FCE8E4;color:#B0301A;border-radius:var(--radius);padding:11px 14px;font-size:13px;margin-bottom:16px;"></div>
+            <div class="form-group"><label>Label</label><input type="text" id="addrLabel" placeholder="e.g. Home, Office" /></div>
+            <div class="form-group"><label>Address *</label><input type="text" id="addrText" required placeholder="Area / landmark, Kampala" /></div>
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:16px;"><input type="checkbox" id="addrDefault" style="width:auto;" /> Set as default</label>
+            <div style="display:flex;gap:10px;">
+              <button type="submit" class="btn btn-primary" id="addressSaveBtn" style="flex:1;justify-content:center;">Save Address</button>
+              <button type="button" class="btn btn-outline-navy" id="addressCancelBtn">Cancel</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- ACCOUNT -->
+        <div class="dashboard-section" id="section-account">
+          <div class="dashboard-section-head"><h2>Account Management</h2><p>Keep your details up to date.</p></div>
+          <div class="contact-form-wrap" style="max-width:480px;margin-bottom:20px;">
+            <div class="admin-error" id="accountError" style="display:none;background:#FCE8E4;color:#B0301A;border-radius:var(--radius);padding:11px 14px;font-size:13px;margin-bottom:16px;"></div>
+            <div class="form-success" id="accountSuccess" style="background:var(--amber-light);color:var(--ink);border-radius:var(--radius);padding:11px 14px;font-size:13px;margin-bottom:16px;display:none;">Saved.</div>
+            <form id="accountForm">
+              <div class="form-group"><label>Full Name</label><input type="text" id="fullName" /></div>
+              <div class="form-group"><label>Email</label><input type="email" id="email" disabled style="opacity:.65;" /></div>
+              <div class="form-group"><label>Phone Number</label><input type="tel" id="phone" placeholder="+256 7__ ___ ___" /></div>
+              <button type="submit" class="btn btn-primary" id="saveBtn" style="width:100%;justify-content:center;">Save Changes</button>
+            </form>
+          </div>
+          <div class="contact-form-wrap" style="max-width:480px;">
+            <h3 style="font-size:16px;">Change Password</h3>
+            <div class="admin-error" id="passwordError" style="display:none;background:#FCE8E4;color:#B0301A;border-radius:var(--radius);padding:11px 14px;font-size:13px;margin-bottom:16px;"></div>
+            <div class="form-success" id="passwordSuccess" style="background:var(--amber-light);color:var(--ink);border-radius:var(--radius);padding:11px 14px;font-size:13px;margin-bottom:16px;display:none;">Password updated.</div>
+            <form id="passwordForm">
+              <div class="form-group"><label>New Password *</label><input type="password" id="newPassword" required minlength="6" autocomplete="new-password" /></div>
+              <div class="form-group"><label>Confirm Password *</label><input type="password" id="confirmNewPassword" required minlength="6" autocomplete="new-password" /></div>
+              <button type="submit" class="btn btn-primary" id="passwordBtn" style="width:100%;justify-content:center;">Update Password</button>
+            </form>
+          </div>
+        </div>
+
+        <!-- HELP & FAQS -->
+        <div class="dashboard-section" id="section-help">
+          <div class="dashboard-section-head"><h2>Help &amp; FAQs</h2><p>Common questions — reach out if you need more.</p></div>
+          <div class="detail-block">
+            <div class="faq-item">
+              <h3>How do I track my order?</h3>
+              <p>Open the Orders or Inbox tab — status updates (In Progress, Dispatched, Fulfilled) appear as soon as we update them.</p>
+            </div>
+            <div class="faq-item">
+              <h3>How long does delivery take?</h3>
+              <p>Most orders in Kampala are delivered within 1–3 working days after payment or dispatch confirmation. We'll contact you on the phone number attached to your order to arrange a time.</p>
+            </div>
+            <div class="faq-item">
+              <h3>What payment methods do you accept?</h3>
+              <p>Mobile Money (MTN/Airtel), Card, or Cash on Delivery.</p>
+            </div>
+            <div class="faq-item">
+              <h3>Can I return or exchange a product?</h3>
+              <p>Get in touch with your order reference and we'll sort it out — see contact options below.</p>
+            </div>
+          </div>
+          <div style="margin-top:24px;display:flex;gap:12px;flex-wrap:wrap;">
+            <a href="/contact/" class="btn btn-primary">Contact Us</a>
+            <a href="https://wa.me/256704399665" target="_blank" rel="noopener" class="btn btn-outline-navy">WhatsApp Us</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer style="margin-top:0;">
+  <div class="footer-bottom" style="border-top:none;padding-top:0;">
+    <span>© <span id="copyrightYears">2021–2026</span> ND Electronic Technologies Ltd. All rights reserved.</span>
+    <span>Lukuli, Nanganda — Kampala, Uganda</span>
+  </div>
+</footer>
+
+<a href="https://wa.me/256704399665" class="whatsapp-float" target="_blank" rel="noopener" aria-label="Chat with us on WhatsApp">
+  <svg><use href="#ico-whatsapp"/></svg>
+</a>
+
+<script src="/assets/script.js" defer></script>
+<script src="/assets/cart.js"></script>
+<script src="/assets/supabase-config.js"></script>
+<script>
+  const STATUS_LABELS = {
+    pending: 'Pending', paid: 'Paid', in_progress: 'In Progress',
+    dispatched: 'Dispatched', fulfilled: 'Fulfilled / Complete',
+    failed: 'Failed', cancelled: 'Cancelled',
+  };
+  const SECTIONS = ['orders', 'inbox', 'wishlist', 'reviews', 'payments', 'addresses', 'account', 'help'];
+  const loaded = {};
+
+  function ugx(n) { return 'UGX ' + Number(n).toLocaleString('en-UG'); }
+  function fmtDate(iso) { return new Date(iso).toLocaleString('en-UG', { dateStyle: 'medium', timeStyle: 'short' }); }
+  function fmtRelative(iso) {
+    const diffMs = Date.now() - new Date(iso).getTime();
+    const mins = Math.floor(diffMs / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return mins + 'm ago';
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return hrs + 'h ago';
+    const days = Math.floor(hrs / 24);
+    if (days < 7) return days + 'd ago';
+    return fmtDate(iso);
+  }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+  function starsHtml(rating) {
+    let html = '<span class="star-rating">';
+    for (let i = 1; i <= 5; i++) html += `<svg class="${i <= rating ? 'filled' : ''}"><use href="#ico-star"/></svg>`;
+    return html + '</span>';
+  }
+
+  let currentUser = null;
+  let ORDERS = null;
+
+  async function init() {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) {
+      window.location.href = '/account/login/?redirect=' + encodeURIComponent('/account/');
+      return;
+    }
+    currentUser = session.user;
+    document.getElementById('email').value = currentUser.email;
+
+    const { data: profile } = await supabaseClient.from('profiles').select('full_name, phone').eq('id', currentUser.id).single();
+    if (profile) {
+      document.getElementById('fullName').value = profile.full_name || '';
+      document.getElementById('phone').value = profile.phone || '';
+    }
+
+    document.querySelectorAll('.dashboard-nav [data-section]').forEach(btn => {
+      btn.addEventListener('click', () => showSection(btn.dataset.section));
+    });
+    document.getElementById('sidebarSignOutBtn').addEventListener('click', async () => {
+      await supabaseClient.auth.signOut();
+      window.location.href = '/';
+    });
+
+    const initial = (window.location.hash || '').replace('#', '');
+    showSection(SECTIONS.includes(initial) ? initial : 'orders');
+  }
+
+  function showSection(name) {
+    document.querySelectorAll('.dashboard-section').forEach(el => el.classList.toggle('active', el.id === 'section-' + name));
+    document.querySelectorAll('.dashboard-nav [data-section]').forEach(btn => btn.classList.toggle('active', btn.dataset.section === name));
+    history.replaceState(null, '', '#' + name);
+
+    if (loaded[name]) return;
+    loaded[name] = true;
+    if (name === 'orders') loadOrders();
+    if (name === 'inbox') loadInbox();
+    if (name === 'wishlist') loadWishlistSection();
+    if (name === 'reviews') loadMyReviews();
+    if (name === 'payments') loadPayments();
+    if (name === 'addresses') loadAddresses();
+  }
+
+  async function fetchOrders() {
+    if (ORDERS) return ORDERS;
+    const { data, error } = await supabaseClient
+      .from('orders')
+      .select('*, order_items(product_name, quantity)')
+      .eq('customer_id', currentUser.id)
+      .order('created_at', { ascending: false });
+    ORDERS = error ? [] : data;
+    return ORDERS;
+  }
+
+  /* ══════════════════ ORDERS ══════════════════ */
+  async function loadOrders() {
+    const wrap = document.getElementById('ordersWrap');
+    const orders = await fetchOrders();
+
+    if (!orders.length) {
+      wrap.innerHTML = `<div class="account-empty"><p style="margin-bottom:16px;">You haven't placed any orders yet.</p><a href="/shop/" class="btn btn-primary">Browse the Shop →</a></div>`;
+      return;
+    }
+
+    wrap.innerHTML = orders.map(o => {
+      const items = (o.order_items || []).map(i => `${esc(i.product_name)} ×${i.quantity}`).join(', ');
+      const isCod = o.payment_provider === 'cod';
+      return `
+        <div class="account-order-card">
+          <div class="account-order-head">
+            <div><div class="ref">Ref: ${esc(o.payment_tx_ref || o.id)}</div><div class="date">${fmtDate(o.created_at)}</div></div>
+            <span class="order-status ${esc(o.status)}">${esc(STATUS_LABELS[o.status] || o.status)}</span>
+          </div>
+          <div class="account-order-items">${items || '—'}</div>
+          <div class="account-order-foot">
+            <span>${isCod ? 'Cash on Delivery' : 'Paid Online'} · ${esc(o.delivery_address)}</span>
+            <span class="total">${ugx(o.total)}</span>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  /* ══════════════════ INBOX ══════════════════ */
+  async function loadInbox() {
+    const wrap = document.getElementById('inboxWrap');
+    const orders = await fetchOrders();
+
+    if (!orders.length) {
+      wrap.innerHTML = `<p style="color:var(--text-muted);font-size:13.5px;">Nothing here yet — place an order to start seeing updates.</p>`;
+      return;
+    }
+
+    const { data: events } = await supabaseClient
+      .from('order_events')
+      .select('*')
+      .in('order_id', orders.map(o => o.id))
+      .order('created_at', { ascending: false });
+
+    const notifications = orders.map(o => ({
+      ref: o.payment_tx_ref || o.id,
+      text: `Order ${esc(o.payment_tx_ref || '')} placed`,
+      created_at: o.created_at,
+    })).concat((events || []).map(e => {
+      const o = orders.find(x => x.id === e.order_id);
+      return {
+        ref: o ? (o.payment_tx_ref || o.id) : e.order_id,
+        text: `Order ${esc(o ? (o.payment_tx_ref || '') : '')} is now ${esc(STATUS_LABELS[e.status] || e.status)}`,
+        created_at: e.created_at,
+      };
+    })).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+    wrap.innerHTML = notifications.map(n => `
+      <div class="account-order-card" style="padding:16px 22px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:14px;">
+          <span style="font-size:13.5px;">${n.text}</span>
+          <span style="font-size:12px;color:var(--text-muted);white-space:nowrap;">${fmtRelative(n.created_at)}</span>
+        </div>
+      </div>`).join('');
+  }
+
+  /* ══════════════════ WISHLIST ══════════════════ */
+  async function loadWishlistSection() {
+    const wrap = document.getElementById('wishlistWrap');
+    const { data, error } = await supabaseClient
+      .from('wishlist_items')
+      .select('id, products(*)')
+      .eq('customer_id', currentUser.id)
+      .order('created_at', { ascending: false });
+
+    if (error || !data.length) {
+      wrap.innerHTML = `<div class="account-empty" style="grid-column:1/-1;"><p style="margin-bottom:16px;">Your wishlist is empty.</p><a href="/shop/" class="btn btn-primary">Browse the Shop →</a></div>`;
+      return;
+    }
+
+    wrap.innerHTML = data.filter(w => w.products).map(w => {
+      const p = w.products;
+      return `
+        <div class="shop-card">
+          <div class="shop-card-media">
+            <a href="/product/?id=${p.id}" class="shop-card-img">
+              ${p.image_url ? `<img src="${esc(p.image_url)}" alt="${esc(p.name)}" loading="lazy" />` : `<div class="shop-card-noimg">No image</div>`}
+            </a>
+          </div>
+          <div class="shop-card-body">
+            <span class="shop-card-cat">${esc(p.category)}</span>
+            <a href="/product/?id=${p.id}"><h3>${esc(p.name)}</h3></a>
+            <div class="shop-card-foot">
+              <span class="shop-card-price">${ugx(p.price)}</span>
+              <button class="btn btn-outline-navy" style="padding:9px 14px;font-size:12.5px;" data-remove-wishlist="${w.id}">Remove</button>
+            </div>
+          </div>
+        </div>`;
+    }).join('');
+
+    wrap.querySelectorAll('[data-remove-wishlist]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        await supabaseClient.from('wishlist_items').delete().eq('id', btn.dataset.removeWishlist);
+        loaded.wishlist = false;
+        loadWishlistSection();
+      });
+    });
+  }
+
+  /* ══════════════════ RATINGS & REVIEWS ══════════════════ */
+  async function loadMyReviews() {
+    const wrap = document.getElementById('reviewsWrap');
+    const { data, error } = await supabaseClient
+      .from('reviews')
+      .select('*, products(name)')
+      .eq('customer_id', currentUser.id)
+      .order('created_at', { ascending: false });
+
+    if (error || !data.length) {
+      wrap.innerHTML = `<p style="color:var(--text-muted);font-size:13.5px;">You haven't reviewed any products yet.</p>`;
+      return;
+    }
+
+    wrap.innerHTML = data.map(r => `
+      <div class="review-card">
+        <div class="review-card-head">
+          <div><div class="review-card-product">${esc(r.products ? r.products.name : 'Product')}</div>${starsHtml(r.rating)}</div>
+          <span class="review-card-date">${fmtDate(r.created_at)}</span>
+        </div>
+        ${r.comment ? `<p>${esc(r.comment)}</p>` : ''}
+        <button type="button" class="checkout-link" style="margin-top:10px;" data-delete-review="${r.id}">Delete</button>
+      </div>`).join('');
+
+    wrap.querySelectorAll('[data-delete-review]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        await supabaseClient.from('reviews').delete().eq('id', btn.dataset.deleteReview);
+        loaded.reviews = false;
+        loadMyReviews();
+      });
+    });
+  }
+
+  /* ══════════════════ PAYMENT HISTORY ══════════════════ */
+  async function loadPayments() {
+    const body = document.getElementById('paymentsBody');
+    const orders = await fetchOrders();
+
+    if (!orders.length) {
+      body.innerHTML = '<tr><td colspan="5" style="color:var(--text-muted);">No payments yet.</td></tr>';
+      return;
+    }
+
+    body.innerHTML = orders.map(o => `
+      <tr>
+        <td>${fmtDate(o.created_at)}</td>
+        <td style="font-family:var(--font-mono);font-size:12px;">${esc(o.payment_tx_ref || '—')}</td>
+        <td>${o.payment_provider === 'cod' ? 'Cash on Delivery' : 'Online'}</td>
+        <td class="total">${ugx(o.total)}</td>
+        <td><span class="order-status ${esc(o.status)}">${esc(STATUS_LABELS[o.status] || o.status)}</span></td>
+      </tr>`).join('');
+  }
+
+  /* ══════════════════ ADDRESS BOOK ══════════════════ */
+  async function loadAddresses() {
+    const wrap = document.getElementById('addressesWrap');
+    const { data, error } = await supabaseClient.from('addresses').select('*').eq('customer_id', currentUser.id).order('is_default', { ascending: false });
+
+    if (error || !data.length) {
+      wrap.innerHTML = `<p style="color:var(--text-muted);font-size:13.5px;">No saved addresses yet.</p>`;
+    } else {
+      wrap.innerHTML = data.map(a => `
+        <div class="address-card${a.is_default ? ' is-default' : ''}">
+          <div>
+            <div class="address-card-label">${esc(a.label || 'Address')}${a.is_default ? '<span class="default-tag">Default</span>' : ''}</div>
+            <div class="address-card-text">${esc(a.address_text)}</div>
+          </div>
+          <div class="address-card-actions">
+            ${a.is_default ? '' : `<button type="button" class="checkout-link" data-make-default="${a.id}">Make default</button>`}
+            <button type="button" class="checkout-link" data-delete-address="${a.id}">Delete</button>
+          </div>
+        </div>`).join('');
+
+      wrap.querySelectorAll('[data-make-default]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          await supabaseClient.from('addresses').update({ is_default: false }).eq('customer_id', currentUser.id);
+          await supabaseClient.from('addresses').update({ is_default: true }).eq('id', btn.dataset.makeDefault);
+          loaded.addresses = false;
+          loadAddresses();
+        });
+      });
+      wrap.querySelectorAll('[data-delete-address]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          await supabaseClient.from('addresses').delete().eq('id', btn.dataset.deleteAddress);
+          loaded.addresses = false;
+          loadAddresses();
+        });
+      });
+    }
+  }
+
+  document.getElementById('addAddressBtn').addEventListener('click', () => {
+    document.getElementById('addressForm').style.display = 'block';
+    document.getElementById('addAddressBtn').style.display = 'none';
+  });
+  document.getElementById('addressCancelBtn').addEventListener('click', () => {
+    document.getElementById('addressForm').style.display = 'none';
+    document.getElementById('addAddressBtn').style.display = 'inline-flex';
+    document.getElementById('addressForm').reset();
+  });
+  document.getElementById('addressForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errorBox = document.getElementById('addressError');
+    errorBox.style.display = 'none';
+    const btn = document.getElementById('addressSaveBtn');
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+
+    const isDefault = document.getElementById('addrDefault').checked;
+    if (isDefault) {
+      await supabaseClient.from('addresses').update({ is_default: false }).eq('customer_id', currentUser.id);
+    }
+    const { error } = await supabaseClient.from('addresses').insert({
+      customer_id: currentUser.id,
+      label: document.getElementById('addrLabel').value.trim() || null,
+      address_text: document.getElementById('addrText').value.trim(),
+      is_default: isDefault,
+    });
+
+    btn.disabled = false;
+    btn.textContent = 'Save Address';
+
+    if (error) {
+      errorBox.textContent = error.message;
+      errorBox.style.display = 'block';
+      return;
+    }
+    document.getElementById('addressForm').reset();
+    document.getElementById('addressForm').style.display = 'none';
+    document.getElementById('addAddressBtn').style.display = 'inline-flex';
+    loaded.addresses = false;
+    loadAddresses();
+  });
+
+  /* ══════════════════ ACCOUNT MANAGEMENT ══════════════════ */
+  document.getElementById('accountForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errorBox = document.getElementById('accountError');
+    const successBox = document.getElementById('accountSuccess');
+    errorBox.style.display = 'none';
+    successBox.style.display = 'none';
+
+    const btn = document.getElementById('saveBtn');
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+
+    const { error } = await supabaseClient.from('profiles').update({
+      full_name: document.getElementById('fullName').value.trim(),
+      phone: document.getElementById('phone').value.trim(),
+    }).eq('id', currentUser.id);
+
+    btn.disabled = false;
+    btn.textContent = 'Save Changes';
+
+    if (error) {
+      errorBox.textContent = error.message;
+      errorBox.style.display = 'block';
+      return;
+    }
+    successBox.style.display = 'block';
+    setTimeout(() => { successBox.style.display = 'none'; }, 2500);
+  });
+
+  document.getElementById('passwordForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errorBox = document.getElementById('passwordError');
+    const successBox = document.getElementById('passwordSuccess');
+    errorBox.style.display = 'none';
+    successBox.style.display = 'none';
+
+    const newPassword = document.getElementById('newPassword').value;
+    const confirmNewPassword = document.getElementById('confirmNewPassword').value;
+    if (newPassword !== confirmNewPassword) {
+      errorBox.textContent = 'Passwords do not match.';
+      errorBox.style.display = 'block';
+      return;
+    }
+
+    const btn = document.getElementById('passwordBtn');
+    btn.disabled = true;
+    btn.textContent = 'Updating...';
+
+    const { error } = await supabaseClient.auth.updateUser({ password: newPassword });
+
+    btn.disabled = false;
+    btn.textContent = 'Update Password';
+
+    if (error) {
+      errorBox.textContent = error.message;
+      errorBox.style.display = 'block';
+      return;
+    }
+    document.getElementById('passwordForm').reset();
+    successBox.style.display = 'block';
+    setTimeout(() => { successBox.style.display = 'none'; }, 2500);
+  });
+
+  init();
+</script>
+</body>
+</html>

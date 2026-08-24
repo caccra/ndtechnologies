@@ -1,9 +1,10 @@
 # Shop Setup Guide
 
-This site now has a shop: customers can browse products, verify their email address,
-pay online or choose Cash on Delivery, and you manage everything from an admin panel
-at `/admin/`. None of it works yet — it needs two free accounts connected first. This
-takes about 20–30 minutes.
+This site now has a shop: customers can browse products, optionally register an
+account or check out as a guest, verify their email address, pay online or choose
+Cash on Delivery, and you manage everything from an admin panel at `/admin/`. None
+of it works yet — it needs two free accounts connected first. This takes about
+20–30 minutes.
 
 ## What you're connecting
 
@@ -32,15 +33,39 @@ Both have free tiers that comfortably cover a small business shop.
 
 ### Create your admin login
 
+Customers can now register their own accounts too (see section 2 below), so
+admin access is a deliberate flag, not just "anyone who can sign in" —
+**this step is required**, or the account you create in step 2 will be able
+to log into `/admin/` but see an empty, permission-denied dashboard.
+
 1. In Supabase, go to **Authentication → Users → Add user**.
 2. Enter the email/password you want to use to log into `/admin/`.
-3. That's it — no separate "admin" flag needed. Anyone who can sign in through Supabase Auth is treated as an admin (that's what the `authenticated` role check in `schema.sql` means). Only create accounts for people you trust with the shop.
+3. Go to **SQL Editor → New query**, and run this (replace the email):
+   ```sql
+   update profiles set is_admin = true
+   where id = (select id from auth.users where email = 'your-admin-email@example.com');
+   ```
+4. Only run this for people you trust with the shop — anyone with `is_admin = true` can see every order and every customer, and can add/edit/delete products.
 
 You can now open `admin/login.html`, sign in, and add products. Product photos you upload go into the `product-images` storage bucket automatically.
 
 ---
 
-## 2. Create your Flutterwave account (for payments)
+## 2. Customer accounts — works out of the box
+
+Customers can register at `/account/register/` and log into a dashboard at
+`/account/` to see their order history and account details — no extra setup
+needed, it uses the same Supabase project as everything else. Guest checkout
+(no account) still works too; registering is optional for customers.
+
+A few things worth knowing:
+- Password reset emails go through the same Supabase email sender as the checkout verification codes in section 4 — the same Custom SMTP setup covers both.
+- A customer's account and a guest checkout are kept separate on purpose: an order only shows up in a customer's dashboard if they were logged in when they placed it.
+- Admin access is controlled separately (the `is_admin` flag above) — registering an account never grants access to `/admin/`.
+
+---
+
+## 3. Create your Flutterwave account (for payments)
 
 1. Go to [flutterwave.com](https://flutterwave.com) → sign up as a business in Uganda.
 2. Complete their verification (KYC) — required before you can accept **live** payments. You can build/test everything before this finishes using **Test Mode**.
@@ -53,7 +78,7 @@ You can now open `admin/login.html`, sign in, and add products. Product photos y
 
 ---
 
-## 3. Email verification at checkout — works out of the box
+## 4. Email verification at checkout — works out of the box
 
 Before paying, customers verify their email with a 6-digit code — this catches
 typos/fake addresses before you commit to delivering an order. It's built on
@@ -74,7 +99,7 @@ Notes:
 
 ---
 
-## 4. Deploy the payment verification function
+## 5. Deploy the payment verification function
 
 Why this step exists: when Flutterwave's payment popup closes, the browser says
 "payment succeeded" — but a browser can be tampered with, so we don't trust that
@@ -99,10 +124,10 @@ as paid. This function lives in `supabase/functions/verify-payment/`.
 
 ---
 
-## 5. Test it end-to-end
+## 6. Test it end-to-end
 
 1. Add a product in `admin/products.html`.
-2. Open `shop.html`, add it to your cart, go to `cart.html`, and fill in the delivery details.
+2. Open `shop.html`, add it to your cart, go to `cart.html`, and fill in the delivery details (optionally register/log in first at `/account/register/` to have the order linked to your account).
 3. Enter the 6-digit code sent to your email (while on the default Supabase sender, check the inbox you signed up to Supabase with).
 4. Pick a payment method:
    - **Cash on Delivery** — skips online payment entirely; the order is created and shows up in `admin/orders.html` as pending, ready to mark **Fulfilled** once delivered and paid.
@@ -121,7 +146,8 @@ your business) and you're accepting real payments.
 |---|---|
 | Product/order database, admin login | Supabase (cloud, free tier) |
 | Product photos | Supabase Storage (`product-images` bucket) |
-| Admin panel | `/admin/login.html`, `/admin/products.html`, `/admin/orders.html` |
+| Admin panel | `/admin/login.html`, `/admin/products.html`, `/admin/orders.html`, `/admin/customers.html` |
+| Customer accounts | `/account/register.html`, `/account/login.html`, `/account/` (dashboard) |
 | Public shop & checkout | `/shop.html`, `/product.html`, `/cart.html` (`assets/checkout.js`) |
 | Email verification (OTP) | Supabase Auth (built-in, or Custom SMTP for production) |
 | Payment | Flutterwave (Mobile Money + cards) or Cash on Delivery |

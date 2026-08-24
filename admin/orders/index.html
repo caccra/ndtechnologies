@@ -19,6 +19,7 @@
     <div class="admin-topbar-right">
       <a href="/admin/products/" style="color:rgba(255,255,255,.7);font-size:13px;font-weight:600;text-decoration:none;">Products</a>
       <a href="/admin/orders/" style="color:var(--amber);font-size:13px;font-weight:600;text-decoration:none;">Orders</a>
+      <a href="/admin/customers/" style="color:rgba(255,255,255,.7);font-size:13px;font-weight:600;text-decoration:none;">Customers</a>
       <span id="userEmail"></span>
       <button id="signOutBtn" class="btn btn-outline-dark" style="padding:8px 16px;font-size:12.5px;">Sign Out</button>
     </div>
@@ -63,6 +64,17 @@
   function fmtDate(iso) { return new Date(iso).toLocaleString('en-UG', { dateStyle: 'medium', timeStyle: 'short' }); }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
+  const STATUS_LABELS = {
+    pending: 'Pending',
+    paid: 'Paid',
+    in_progress: 'In Progress',
+    dispatched: 'Dispatched',
+    fulfilled: 'Fulfilled / Complete',
+    failed: 'Failed',
+    cancelled: 'Cancelled',
+  };
+  const ACTION_OPTIONS = ['in_progress', 'dispatched', 'fulfilled', 'failed', 'cancelled'];
+
   async function loadOrders() {
     const { data: orders, error } = await supabaseClient
       .from('orders')
@@ -80,7 +92,6 @@
     orders.forEach((o) => {
       const items = (o.order_items || []).map(i => `${esc(i.product_name)} ×${i.quantity}`).join(', ');
       const isCod = o.payment_provider === 'cod';
-      const canFulfill = o.status === 'paid' || (isCod && o.status === 'pending');
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${fmtDate(o.created_at)}</td>
@@ -89,18 +100,30 @@
         <td>${items || '—'}</td>
         <td class="total">${ugx(o.total)}</td>
         <td><span class="admin-status-pill ${isCod ? 'off' : 'on'}">${isCod ? 'Cash on Delivery' : 'Online'}</span></td>
-        <td><span class="order-status ${o.status}">${o.status}</span></td>
+        <td><span class="order-status ${o.status}">${esc(STATUS_LABELS[o.status] || o.status)}</span></td>
         <td>
           <div class="admin-row-actions">
-            ${canFulfill ? `<button data-action="fulfill" data-id="${o.id}">Mark Fulfilled</button>` : ''}
+            <select class="order-action-select" data-id="${o.id}">
+              <option value="" disabled selected>Update status…</option>
+              ${ACTION_OPTIONS.map(s => `<option value="${s}">${esc(STATUS_LABELS[s])}</option>`).join('')}
+            </select>
           </div>
         </td>`;
       body.appendChild(tr);
     });
 
-    body.querySelectorAll('button[data-action="fulfill"]').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        await supabaseClient.from('orders').update({ status: 'fulfilled' }).eq('id', btn.dataset.id);
+    body.querySelectorAll('select.order-action-select').forEach(sel => {
+      sel.addEventListener('change', async () => {
+        const newStatus = sel.value;
+        if (!newStatus) return;
+        sel.disabled = true;
+        const { error } = await supabaseClient.from('orders').update({ status: newStatus }).eq('id', sel.dataset.id);
+        if (error) {
+          alert('Could not update status: ' + error.message);
+        } else {
+          // Powers the customer dashboard's Inbox — one row per status change.
+          await supabaseClient.from('order_events').insert({ order_id: sel.dataset.id, status: newStatus });
+        }
         loadOrders();
       });
     });

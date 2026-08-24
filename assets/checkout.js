@@ -18,6 +18,9 @@ const checkout = {
   customer: null,        // { name, phone, email, address, notes }
   emailVerified: false,
   paymentMethod: 'mobile_money',
+  loggedInUser: null,    // Supabase Auth user, set when checking out signed in — skips email OTP entirely
+  savedAddresses: [],     // this customer's addresses from the Address Book, if any
+  useNewAddress: false,   // true once they pick "Use a new address" over a saved one
 };
 
 let resendTimer = null;
@@ -118,6 +121,17 @@ function renderCheckoutSidebar() {
   const total = cartTotal();
   let html = '<div class="checkout-steps">';
 
+  if (checkout.loggedInUser) {
+    html += `
+      <div class="checkout-step done">
+        <div class="checkout-step-head">
+          <span class="checkout-step-num"><svg><use href="#ico-user"/></svg></span>
+          <div><strong>Signed in</strong><span>${esc(checkout.loggedInUser.email)}</span></div>
+          <button type="button" class="checkout-edit" id="checkoutSignOutBtn">Not you?</button>
+        </div>
+      </div>`;
+  }
+
   if (checkout.step > 1 && checkout.customer) {
     html += `
       <div class="checkout-step done">
@@ -151,20 +165,35 @@ function renderCheckoutSidebar() {
 
 function step1Html() {
   const c = checkout.customer || {};
+  const loggedIn = !!checkout.loggedInUser;
+  const btnLabel = loggedIn || !REQUIRE_EMAIL_VERIFICATION ? 'Continue to Payment →' : 'Send Verification Code →';
+  const hasSaved = loggedIn && checkout.savedAddresses.length > 0;
+
+  const addressFieldHtml = hasSaved && !checkout.useNewAddress
+    ? `<div class="form-group">
+        <label>Delivery Address *</label>
+        <select id="custAddressSelect" required>
+          ${checkout.savedAddresses.map(a => `<option value="${esc(a.address_text)}"${c.address === a.address_text ? ' selected' : ''}>${esc(a.label || 'Address')} — ${esc(a.address_text)}</option>`).join('')}
+          <option value="__new__">+ Use a new address</option>
+        </select>
+      </div>`
+    : `<div class="form-group"><label>Delivery Address *</label><input type="text" id="custAddress" required placeholder="Area / landmark, Kampala" value="${esc(c.address || '')}" /></div>`;
+
   return `
     <div class="contact-form-wrap checkout-step">
       <div class="checkout-step-label">Step 1 of ${TOTAL_STEPS} — Delivery Details</div>
       <h3 style="font-size:16px;">Delivery Details</h3>
-      <p style="margin-bottom:18px;">${REQUIRE_EMAIL_VERIFICATION ? "We'll use this to arrange delivery and send your verification code." : "We'll use this to arrange delivery and confirm your order."}</p>
+      <p style="margin-bottom:18px;">${loggedIn || !REQUIRE_EMAIL_VERIFICATION ? "We'll use this to arrange delivery and confirm your order." : "We'll use this to arrange delivery and send your verification code."}</p>
       <div class="admin-error" id="checkoutError"></div>
       <form id="detailsForm">
         <div class="form-group"><label>Full Name *</label><input type="text" id="custName" required value="${esc(c.name || '')}" /></div>
-        <div class="form-group"><label>Email *</label><input type="email" id="custEmail" required value="${esc(c.email || '')}" /></div>
+        <div class="form-group"><label>Email *</label><input type="email" id="custEmail" required value="${esc(c.email || '')}" ${loggedIn ? 'disabled style="opacity:.65;"' : ''} /></div>
         <div class="form-group"><label>Phone Number *</label><input type="tel" id="custPhone" required placeholder="+256 7__ ___ ___" value="${esc(c.phone || '')}" /></div>
-        <div class="form-group"><label>Delivery Address *</label><input type="text" id="custAddress" required placeholder="Area / landmark, Kampala" value="${esc(c.address || '')}" /></div>
+        ${addressFieldHtml}
         <div class="form-group"><label>Notes</label><textarea id="custNotes" placeholder="Optional">${esc(c.notes || '')}</textarea></div>
-        <button type="submit" class="btn btn-primary" id="detailsBtn" style="width:100%;justify-content:center;">${REQUIRE_EMAIL_VERIFICATION ? 'Send Verification Code →' : 'Continue to Payment →'}</button>
+        <button type="submit" class="btn btn-primary" id="detailsBtn" style="width:100%;justify-content:center;">${btnLabel}</button>
       </form>
+      ${loggedIn ? '' : '<p style="text-align:center;margin-top:14px;font-size:13px;color:var(--text-muted);">Have an account? <a href="/account/login/?redirect=' + encodeURIComponent('/cart/') + '">Log in</a> to check out faster.</p>'}
     </div>`;
 }
 
@@ -223,6 +252,17 @@ function step3Html(total) {
 }
 
 function bindStepEvents() {
+  const signOutBtn = document.getElementById('checkoutSignOutBtn');
+  if (signOutBtn) {
+    signOutBtn.addEventListener('click', async () => {
+      await supabaseClient.auth.signOut();
+      checkout.loggedInUser = null;
+      checkout.customer = null;
+      checkout.step = 1;
+      renderCheckoutSidebar();
+    });
+  }
+
   document.querySelectorAll('[data-edit-step]').forEach(btn => {
     btn.addEventListener('click', () => {
       checkout.step = Number(btn.dataset.editStep);
@@ -232,6 +272,16 @@ function bindStepEvents() {
 
   const detailsForm = document.getElementById('detailsForm');
   if (detailsForm) detailsForm.addEventListener('submit', handleDetailsSubmit);
+
+  const addressSelect = document.getElementById('custAddressSelect');
+  if (addressSelect) {
+    addressSelect.addEventListener('change', () => {
+      if (addressSelect.value === '__new__') {
+        checkout.useNewAddress = true;
+        renderCheckoutSidebar();
+      }
+    });
+  }
 
   const otpForm = document.getElementById('otpForm');
   if (otpForm) {
@@ -284,7 +334,8 @@ async function handleDetailsSubmit(e) {
 
   const name = document.getElementById('custName').value.trim();
   const email = document.getElementById('custEmail').value.trim();
-  const address = document.getElementById('custAddress').value.trim();
+  const addressField = document.getElementById('custAddress') || document.getElementById('custAddressSelect');
+  const address = addressField.value.trim();
   const notes = document.getElementById('custNotes').value.trim();
   const phone = normalizePhoneUG(document.getElementById('custPhone').value);
 
@@ -303,7 +354,9 @@ async function handleDetailsSubmit(e) {
   checkout.customer = { name, phone, email, address, notes };
   if (emailChanged) checkout.emailVerified = false;
 
-  if (!REQUIRE_EMAIL_VERIFICATION) {
+  // A real account is stronger proof of contact than a one-off email code —
+  // logged-in customers always skip straight to payment.
+  if (checkout.loggedInUser || !REQUIRE_EMAIL_VERIFICATION) {
     checkout.step = PAYMENT_STEP;
     renderCheckoutSidebar();
     return;
@@ -429,6 +482,7 @@ async function handlePlaceOrder() {
 
   try {
     const { data: order, error: orderError } = await supabaseClient.from('orders').insert({
+      customer_id: checkout.loggedInUser ? checkout.loggedInUser.id : null,
       customer_name: customer.name,
       customer_phone: customer.phone,
       customer_email: customer.email,
@@ -496,4 +550,24 @@ async function handlePlaceOrder() {
   }
 }
 
-renderCart();
+async function initCheckout() {
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if (session) {
+    checkout.loggedInUser = session.user;
+    const { data: profile } = await supabaseClient.from('profiles').select('full_name, phone').eq('id', session.user.id).single();
+    const { data: addresses } = await supabaseClient.from('addresses').select('*').eq('customer_id', session.user.id).order('is_default', { ascending: false });
+    checkout.savedAddresses = addresses || [];
+    const defaultAddress = checkout.savedAddresses.find(a => a.is_default) || checkout.savedAddresses[0];
+    checkout.customer = {
+      name: (profile && profile.full_name) || '',
+      phone: (profile && profile.phone) || '',
+      email: session.user.email,
+      address: defaultAddress ? defaultAddress.address_text : '',
+      notes: '',
+    };
+    checkout.emailVerified = true;
+  }
+  renderCart();
+}
+
+initCheckout();

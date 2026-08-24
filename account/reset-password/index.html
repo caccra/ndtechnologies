@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Set a New Password — ND Electronic Technologies Ltd</title>
+<link rel="canonical" href="https://ndelectronictechnologies.com/account/reset-password/" />
+<meta name="robots" content="noindex, nofollow" />
+<link rel="icon" type="image/png" href="/assets/images/nd-electronic-logo.png" />
+<link rel="apple-touch-icon" href="/assets/images/nd-electronic-logo.png" />
+<meta name="theme-color" content="#0a1628" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Poppins:wght@500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/assets/styles.css" />
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body data-page="account">
+
+<nav id="navbar">
+  <a href="/" class="brand" id="navBrand"></a>
+  <ul class="nav-links">
+    <li><a href="/" data-nav="home">Home</a></li>
+    <li><a href="/services/" data-nav="services">Services</a></li>
+    <li><a href="/shop/" data-nav="shop">Shop</a></li>
+    <li><a href="/about/" data-nav="about">About</a></li>
+    <li><a href="/contact/" data-nav="contact">Contact</a></li>
+  </ul>
+  <div class="nav-right">
+    <a href="/account/" class="account-icon-link" aria-label="Account"><svg><use href="#ico-user"/></svg></a>
+    <a href="/cart/" class="cart-icon-link" aria-label="Cart">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M3 4h2l2.4 12.2a2 2 0 0 0 2 1.8h7.6a2 2 0 0 0 2-1.6L21 8H6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="10" cy="21" r="1.4" fill="currentColor"/><circle cx="17" cy="21" r="1.4" fill="currentColor"/></svg>
+      <span class="cart-badge" data-cart-count>0</span>
+    </a>
+    <a href="/contact/" class="btn btn-primary" style="padding:11px 20px;font-size:13.5px;">Request a Site Survey</a>
+  </div>
+  <button class="hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false">
+    <span></span><span></span><span></span>
+  </button>
+</nav>
+
+<div class="mobile-menu" id="mobileMenu">
+  <a href="/" data-nav="home">Home</a>
+  <a href="/services/" data-nav="services">Services</a>
+  <a href="/shop/" data-nav="shop">Shop</a>
+  <a href="/about/" data-nav="about">About</a>
+  <a href="/contact/" data-nav="contact">Contact</a>
+  <a href="/account/">My Account</a>
+  <a href="/cart/">Cart (<span data-cart-count style="display:inline">0</span>)</a>
+  <a href="/contact/" class="btn btn-primary">Request a Site Survey</a>
+</div>
+
+<section style="padding-top:140px;padding-bottom:120px;">
+  <div class="container" style="max-width:440px;">
+    <div class="contact-form-wrap" id="formWrap">
+      <div class="eyebrow" style="justify-content:center;display:flex;">Account Recovery</div>
+      <h3 style="text-align:center;">Set a New Password</h3>
+      <p style="text-align:center;" id="formIntro">Choose a new password for your account.</p>
+      <div class="admin-error" id="formError" style="display:none;background:#FCE8E4;color:#B0301A;border-radius:var(--radius);padding:11px 14px;font-size:13px;margin-bottom:16px;"></div>
+      <form id="setPasswordForm" style="display:none;">
+        <div class="form-group"><label>New Password *</label><input type="password" id="password" required minlength="6" autocomplete="new-password" /></div>
+        <div class="form-group"><label>Confirm Password *</label><input type="password" id="confirmPassword" required minlength="6" autocomplete="new-password" /></div>
+        <button type="submit" class="btn btn-primary" id="setBtn" style="width:100%;justify-content:center;">Set New Password</button>
+      </form>
+    </div>
+  </div>
+</section>
+
+<footer style="margin-top:0;">
+  <div class="footer-bottom" style="border-top:none;padding-top:0;">
+    <span>© <span id="copyrightYears">2021–2026</span> ND Electronic Technologies Ltd. All rights reserved.</span>
+    <span>Lukuli, Nanganda — Kampala, Uganda</span>
+  </div>
+</footer>
+
+<a href="https://wa.me/256704399665" class="whatsapp-float" target="_blank" rel="noopener" aria-label="Chat with us on WhatsApp">
+  <svg><use href="#ico-whatsapp"/></svg>
+</a>
+
+<script src="/assets/script.js" defer></script>
+<script src="/assets/cart.js"></script>
+<script src="/assets/supabase-config.js"></script>
+<script>
+  const errorBox = document.getElementById('formError');
+  const form = document.getElementById('setPasswordForm');
+  const intro = document.getElementById('formIntro');
+
+  // supabase-js reads the recovery token out of the URL hash automatically
+  // and fires this event once the recovery session is ready.
+  let ready = false;
+  supabaseClient.auth.onAuthStateChange((event) => {
+    if (event === 'PASSWORD_RECOVERY') {
+      ready = true;
+      form.style.display = 'block';
+    }
+  });
+
+  // Fallback: if the link was already consumed on load (some email clients
+  // pre-fetch links), check for an existing session directly.
+  setTimeout(async () => {
+    if (ready) return;
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (session) {
+      form.style.display = 'block';
+    } else {
+      intro.textContent = '';
+      errorBox.textContent = 'This reset link is invalid or has expired. Please request a new one.';
+      errorBox.style.display = 'block';
+      form.style.display = 'none';
+    }
+  }, 1500);
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errorBox.style.display = 'none';
+
+    const password = document.getElementById('password').value;
+    const confirmPassword = document.getElementById('confirmPassword').value;
+    if (password !== confirmPassword) {
+      errorBox.textContent = 'Passwords do not match.';
+      errorBox.style.display = 'block';
+      return;
+    }
+
+    const btn = document.getElementById('setBtn');
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+
+    const { error } = await supabaseClient.auth.updateUser({ password });
+
+    if (error) {
+      btn.disabled = false;
+      btn.textContent = 'Set New Password';
+      errorBox.textContent = error.message;
+      errorBox.style.display = 'block';
+      return;
+    }
+
+    window.location.href = '/account/';
+  });
+</script>
+</body>
+</html>

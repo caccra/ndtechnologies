@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Customers — Admin — ND Electronic Technologies Ltd</title>
+<meta name="robots" content="noindex, nofollow" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Poppins:wght@500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/assets/styles.css" />
+<link rel="stylesheet" href="/assets/admin.css" />
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+<div class="admin-shell">
+  <div class="admin-topbar">
+    <a href="/" class="brand" id="navBrand"></a>
+    <div class="admin-topbar-right">
+      <a href="/admin/products/" style="color:rgba(255,255,255,.7);font-size:13px;font-weight:600;text-decoration:none;">Products</a>
+      <a href="/admin/orders/" style="color:rgba(255,255,255,.7);font-size:13px;font-weight:600;text-decoration:none;">Orders</a>
+      <a href="/admin/customers/" style="color:var(--amber);font-size:13px;font-weight:600;text-decoration:none;">Customers</a>
+      <span id="userEmail"></span>
+      <button id="signOutBtn" class="btn btn-outline-dark" style="padding:8px 16px;font-size:12.5px;">Sign Out</button>
+    </div>
+  </div>
+
+  <div class="admin-main">
+    <div class="admin-head">
+      <div>
+        <h1>Customers</h1>
+        <p>Everyone who has placed an order, built from your order history — grouped by phone number.</p>
+      </div>
+      <input type="search" id="customerSearch" placeholder="Search name, phone or email…"
+        style="padding:10px 14px;border:1.5px solid var(--line);border-radius:var(--radius);font-size:13.5px;font-family:var(--font-body);min-width:240px;" />
+    </div>
+
+    <div class="admin-panel">
+      <div class="admin-table-wrap">
+        <table class="admin-table admin-customers-table">
+          <thead>
+            <tr><th>Customer</th><th>Phone</th><th>Email</th><th>Orders</th><th>Total Spent</th><th>Last Order</th><th>Delivery Address</th></tr>
+          </thead>
+          <tbody id="customersBody"></tbody>
+        </table>
+        <div class="admin-empty" id="emptyState" style="display:none;">No customers yet — orders will appear here once placed.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/assets/supabase-config.js"></script>
+<script>
+  (async function guard() {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) { window.location.href = '/admin/login/'; return; }
+    document.getElementById('userEmail').textContent = session.user.email;
+  })();
+
+  document.getElementById('signOutBtn').addEventListener('click', async () => {
+    await supabaseClient.auth.signOut();
+    window.location.href = '/admin/login/';
+  });
+
+  function ugx(n) { return 'UGX ' + Number(n).toLocaleString('en-UG'); }
+  function fmtDate(iso) { return new Date(iso).toLocaleString('en-UG', { dateStyle: 'medium', timeStyle: 'short' }); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+  let CUSTOMERS = [];
+
+  function normalizePhone(raw) {
+    return String(raw || '').replace(/[\s-]/g, '');
+  }
+
+  async function loadCustomers() {
+    const { data: orders, error } = await supabaseClient
+      .from('orders')
+      .select('customer_name, customer_phone, customer_email, delivery_address, total, status, created_at')
+      .order('created_at', { ascending: false });
+
+    const body = document.getElementById('customersBody');
+    const empty = document.getElementById('emptyState');
+
+    if (error) { console.error(error); return; }
+
+    const byPhone = new Map();
+    orders.forEach(o => {
+      const key = normalizePhone(o.customer_phone) || o.customer_email || o.customer_name;
+      if (!byPhone.has(key)) {
+        byPhone.set(key, {
+          name: o.customer_name,
+          phone: o.customer_phone,
+          email: o.customer_email,
+          address: o.delivery_address,
+          lastOrderAt: o.created_at,
+          orderCount: 0,
+          totalSpent: 0,
+        });
+      }
+      const c = byPhone.get(key);
+      c.orderCount += 1;
+      if (o.status !== 'failed' && o.status !== 'cancelled') c.totalSpent += Number(o.total);
+      // orders are sorted newest-first, so the first one seen per customer is already their latest details
+    });
+
+    CUSTOMERS = Array.from(byPhone.values()).sort((a, b) => new Date(b.lastOrderAt) - new Date(a.lastOrderAt));
+    renderCustomers();
+  }
+
+  function renderCustomers() {
+    const body = document.getElementById('customersBody');
+    const empty = document.getElementById('emptyState');
+    const q = document.getElementById('customerSearch').value.trim().toLowerCase();
+
+    const rows = CUSTOMERS.filter(c =>
+      !q || [c.name, c.phone, c.email].some(v => (v || '').toLowerCase().includes(q))
+    );
+
+    body.innerHTML = '';
+    if (!rows.length) { empty.style.display = 'block'; return; }
+    empty.style.display = 'none';
+
+    rows.forEach(c => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${esc(c.name)}</td>
+        <td><a href="tel:${esc(c.phone)}">${esc(c.phone)}</a></td>
+        <td>${c.email ? `<a href="mailto:${esc(c.email)}">${esc(c.email)}</a>` : '—'}</td>
+        <td>${c.orderCount}</td>
+        <td class="total">${ugx(c.totalSpent)}</td>
+        <td>${fmtDate(c.lastOrderAt)}</td>
+        <td>${esc(c.address)}</td>`;
+      body.appendChild(tr);
+    });
+  }
+
+  document.getElementById('customerSearch').addEventListener('input', renderCustomers);
+
+  loadCustomers();
+</script>
+<script src="/assets/script.js" defer></script>
+</body>
+</html>

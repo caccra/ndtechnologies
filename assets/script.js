@@ -115,6 +115,16 @@
       <path d="M12 3.5 19 6v5.5c0 4.6-3 7.7-7 9-4-1.3-7-4.4-7-9V6l7-2.5Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
       <path d="M9 12.2 11.2 14.5 15.5 9.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
     </symbol>
+    <symbol id="ico-user" viewBox="0 0 24 24">
+      <circle cx="12" cy="8" r="3.6" fill="none" stroke="currentColor" stroke-width="1.7"/>
+      <path d="M4.5 20c1-4 4-6 7.5-6s6.5 2 7.5 6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="ico-heart" viewBox="0 0 24 24">
+      <path d="M12 20.2S3.5 15 3.5 9.1A4.6 4.6 0 0 1 12 6.5a4.6 4.6 0 0 1 8.5 2.6C20.5 15 12 20.2 12 20.2Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="ico-star" viewBox="0 0 24 24">
+      <path d="M12 3.5 14.7 9 20.8 9.9 16.4 14.1 17.5 20.2 12 17.3 6.5 20.2 7.6 14.1 3.2 9.9 9.3 9Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+    </symbol>
   </defs>`;
 
   const LOGO_IMG = '<img src="/assets/images/nd-electronic-logo.png" alt="ND Electronic Technologies Ltd" />';
