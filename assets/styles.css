@@ -2221,8 +2221,6 @@ nav.scrolled {
   border: 1.5px solid var(--line);
   border-radius: var(--radius-lg);
   padding: 10px;
-  position: sticky;
-  top: 100px;
 }
 
 .dashboard-nav button {
@@ -2295,7 +2293,6 @@ nav.scrolled {
   }
 
   .dashboard-nav {
-    position: static;
     flex-direction: row;
     flex-wrap: wrap;
   }

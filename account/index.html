@@ -32,7 +32,7 @@
       <svg viewBox="0 0 24 24" fill="none"><path d="M3 4h2l2.4 12.2a2 2 0 0 0 2 1.8h7.6a2 2 0 0 0 2-1.6L21 8H6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="10" cy="21" r="1.4" fill="currentColor"/><circle cx="17" cy="21" r="1.4" fill="currentColor"/></svg>
       <span class="cart-badge" data-cart-count>0</span>
     </a>
-    <a href="/contact/" class="btn btn-primary" style="padding:11px 20px;font-size:13.5px;">Request a Site Survey</a>
+    <a href="/account/" class="btn btn-primary" style="padding:11px 20px;font-size:13.5px;">My Account</a>
   </div>
   <button class="hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false">
     <span></span><span></span><span></span>
@@ -47,7 +47,7 @@
   <a href="/contact/" data-nav="contact">Contact</a>
   <a href="/account/">My Account</a>
   <a href="/cart/">Cart (<span data-cart-count style="display:inline">0</span>)</a>
-  <a href="/contact/" class="btn btn-primary">Request a Site Survey</a>
+  <a href="/account/" class="btn btn-primary">My Account</a>
 </div>
 
 <header class="page-header grid-tex-dark">
@@ -60,7 +60,7 @@
 <section>
   <div class="container">
     <div class="dashboard-shell">
-      <nav class="dashboard-nav">
+      <div class="dashboard-nav" role="navigation" aria-label="Account sections">
         <button type="button" data-section="orders"><svg><use href="#ico-cash"/></svg>Orders</button>
         <button type="button" data-section="inbox"><svg><use href="#ico-mail"/></svg>Inbox</button>
         <button type="button" data-section="wishlist"><svg><use href="#ico-heart"/></svg>Wishlist</button>
@@ -70,7 +70,7 @@
         <button type="button" data-section="account"><svg><use href="#ico-user"/></svg>Account</button>
         <button type="button" data-section="help"><svg><use href="#ico-phone"/></svg>Help &amp; FAQs</button>
         <button type="button" id="sidebarSignOutBtn" class="danger"><svg><use href="#ico-arrow-up"/></svg>Logout</button>
-      </nav>
+      </div>
 
       <div>
         <!-- ORDERS -->
