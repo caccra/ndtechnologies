@@ -141,7 +141,7 @@
     const { data, error } = await supabaseClient.from('products').select('*').eq('id', id).single();
     if (error || !data) { wrap.innerHTML = '<p>Product not found.</p>'; return; }
 
-    currentProduct = data;
+    currentProduct = { ...data, id: String(data.id) };
     document.getElementById('crumbName').textContent = data.name;
     document.title = data.name + ' — ND Electronic Technologies Ltd';
 

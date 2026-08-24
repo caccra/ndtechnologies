@@ -3,10 +3,18 @@
    (Cash on Delivery, Mobile Money, or Card). No customer accounts/passwords —
    the email OTP is a one-off contact check via Supabase Auth, and the session
    it creates is discarded immediately after verifying so it never gains the
-   "authenticated" role used to gate the admin panel. */
+   "authenticated" role used to gate the admin panel.
+
+   Email verification is switched off below (REQUIRE_EMAIL_VERIFICATION = false)
+   until Custom SMTP is connected in Supabase — see SETUP.md step 3. Flip it back
+   to true once verification codes are actually being delivered. */
+
+const REQUIRE_EMAIL_VERIFICATION = false;
+const PAYMENT_STEP = REQUIRE_EMAIL_VERIFICATION ? 3 : 2;
+const TOTAL_STEPS = REQUIRE_EMAIL_VERIFICATION ? 3 : 2;
 
 const checkout = {
-  step: 1,              // 1 = delivery details, 2 = verify email, 3 = payment method
+  step: 1,              // 1 = delivery details, then either 2 = verify email + 3 = payment, or straight to 2 = payment
   customer: null,        // { name, phone, email, address, notes }
   emailVerified: false,
   paymentMethod: 'mobile_money',
@@ -122,9 +130,9 @@ function renderCheckoutSidebar() {
   }
 
   if (checkout.step === 1) html += step1Html();
-  if (checkout.step === 2) html += step2Html();
+  if (REQUIRE_EMAIL_VERIFICATION && checkout.step === 2) html += step2Html();
 
-  if (checkout.step > 2 && checkout.emailVerified) {
+  if (REQUIRE_EMAIL_VERIFICATION && checkout.step > 2 && checkout.emailVerified) {
     html += `
       <div class="checkout-step done">
         <div class="checkout-step-head">
@@ -134,7 +142,7 @@ function renderCheckoutSidebar() {
       </div>`;
   }
 
-  if (checkout.step === 3) html += step3Html(total);
+  if (checkout.step === PAYMENT_STEP) html += step3Html(total);
 
   html += '</div>';
   sidebar.innerHTML = html;
@@ -145,9 +153,9 @@ function step1Html() {
   const c = checkout.customer || {};
   return `
     <div class="contact-form-wrap checkout-step">
-      <div class="checkout-step-label">Step 1 of 3 — Delivery Details</div>
+      <div class="checkout-step-label">Step 1 of ${TOTAL_STEPS} — Delivery Details</div>
       <h3 style="font-size:16px;">Delivery Details</h3>
-      <p style="margin-bottom:18px;">We'll use this to arrange delivery and send your verification code.</p>
+      <p style="margin-bottom:18px;">${REQUIRE_EMAIL_VERIFICATION ? "We'll use this to arrange delivery and send your verification code." : "We'll use this to arrange delivery and confirm your order."}</p>
       <div class="admin-error" id="checkoutError"></div>
       <form id="detailsForm">
         <div class="form-group"><label>Full Name *</label><input type="text" id="custName" required value="${esc(c.name || '')}" /></div>
@@ -155,7 +163,7 @@ function step1Html() {
         <div class="form-group"><label>Phone Number *</label><input type="tel" id="custPhone" required placeholder="+256 7__ ___ ___" value="${esc(c.phone || '')}" /></div>
         <div class="form-group"><label>Delivery Address *</label><input type="text" id="custAddress" required placeholder="Area / landmark, Kampala" value="${esc(c.address || '')}" /></div>
         <div class="form-group"><label>Notes</label><textarea id="custNotes" placeholder="Optional">${esc(c.notes || '')}</textarea></div>
-        <button type="submit" class="btn btn-primary" id="detailsBtn" style="width:100%;justify-content:center;">Send Verification Code →</button>
+        <button type="submit" class="btn btn-primary" id="detailsBtn" style="width:100%;justify-content:center;">${REQUIRE_EMAIL_VERIFICATION ? 'Send Verification Code →' : 'Continue to Payment →'}</button>
       </form>
     </div>`;
 }
@@ -163,7 +171,7 @@ function step1Html() {
 function step2Html() {
   return `
     <div class="contact-form-wrap checkout-step">
-      <div class="checkout-step-label">Step 2 of 3 — Verify Your Email</div>
+      <div class="checkout-step-label">Step 2 of ${TOTAL_STEPS} — Verify Your Email</div>
       <h3 style="font-size:16px;">Enter the code we sent</h3>
       <p style="margin-bottom:18px;">We sent a 6-digit code by email to <strong>${esc(checkout.customer.email)}</strong>.</p>
       <div class="admin-error" id="otpError"></div>
@@ -184,7 +192,7 @@ function step3Html(total) {
   const m = checkout.paymentMethod;
   return `
     <div class="contact-form-wrap checkout-step">
-      <div class="checkout-step-label">Step 3 of 3 — Payment Method</div>
+      <div class="checkout-step-label">Step ${PAYMENT_STEP} of ${TOTAL_STEPS} — Payment Method</div>
       <h3 style="font-size:16px;">How would you like to pay?</h3>
       <div class="admin-error" id="paymentError"></div>
       <div class="payment-methods">
@@ -209,7 +217,7 @@ function step3Html(total) {
       </button>
       <div class="checkout-trust-note">
         <svg><use href="#ico-shield"/></svg>
-        <span>Your email is verified. We'll only use your details to confirm and deliver this order.</span>
+        <span>${REQUIRE_EMAIL_VERIFICATION ? "Your email is verified. We'll only use your details to confirm and deliver this order." : "We'll only use your details to confirm and deliver this order."}</span>
       </div>
     </div>`;
 }
@@ -295,8 +303,14 @@ async function handleDetailsSubmit(e) {
   checkout.customer = { name, phone, email, address, notes };
   if (emailChanged) checkout.emailVerified = false;
 
+  if (!REQUIRE_EMAIL_VERIFICATION) {
+    checkout.step = PAYMENT_STEP;
+    renderCheckoutSidebar();
+    return;
+  }
+
   if (checkout.emailVerified) {
-    checkout.step = 3;
+    checkout.step = PAYMENT_STEP;
     renderCheckoutSidebar();
     return;
   }
@@ -353,7 +367,7 @@ async function handleOtpSubmit(e) {
 
   if (resendTimer) clearInterval(resendTimer);
   checkout.emailVerified = true;
-  checkout.step = 3;
+  checkout.step = PAYMENT_STEP;
   renderCheckoutSidebar();
 }
 
@@ -397,6 +411,12 @@ async function handlePlaceOrder() {
   const method = selected ? selected.value : checkout.paymentMethod;
   checkout.paymentMethod = method;
 
+  if (method !== 'cod' && (!FLW_PUBLIC_KEY || FLW_PUBLIC_KEY.includes('YOUR-PUBLIC-KEY-HERE'))) {
+    errorBox.textContent = 'Online payment isn\'t set up yet. Please choose Cash on Delivery, or contact us directly to place this order.';
+    errorBox.style.display = 'block';
+    return;
+  }
+
   const btn = document.getElementById('placeOrderBtn');
   const total = cartTotal();
   const originalLabel = btn.textContent;
@@ -420,7 +440,7 @@ async function handlePlaceOrder() {
       status: 'pending',
       payment_provider: method === 'cod' ? 'cod' : 'flutterwave',
       payment_tx_ref: txRef,
-      email_verified: true,
+      email_verified: checkout.emailVerified,
     }).select().single();
     if (orderError) throw orderError;
 

@@ -18,7 +18,11 @@ async function loadShopProducts() {
     return;
   }
 
-  ALL_PRODUCTS = data;
+  // Normalize id to a string: it round-trips through HTML data- attributes
+  // (always strings) and localStorage cart entries, so every comparison
+  // downstream needs a consistent type regardless of whether the products
+  // table uses uuid or integer ids.
+  ALL_PRODUCTS = data.map(p => ({ ...p, id: String(p.id) }));
   buildCategoryTabs();
   renderGrid();
   injectProductListSchema();

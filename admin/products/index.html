@@ -151,6 +151,11 @@
       if (!data.length) { empty.style.display = 'block'; return; }
       empty.style.display = 'none';
 
+      // Normalize id to a string so it matches the string always read back
+      // from the button's data-id attribute, regardless of whether the
+      // products table uses uuid or integer ids.
+      data.forEach(p => { p.id = String(p.id); });
+
       data.forEach((p) => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
