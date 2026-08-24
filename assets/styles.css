@@ -2356,6 +2356,25 @@ nav.scrolled {
   line-height: 1.6;
 }
 
+.review-photo-thumbs,
+.review-image-gallery {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.review-photo-thumbs img,
+.review-image-gallery img {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--paper-2);
+  cursor: pointer;
+}
+
 /* ══════════════════ ADDRESS BOOK ══════════════════ */
 .address-card {
   background: var(--white);
@@ -2399,6 +2418,19 @@ nav.scrolled {
   display: flex;
   gap: 8px;
   flex-shrink: 0;
+}
+
+.address-map {
+  display: none;
+  height: 220px;
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-top: 8px;
+  background: var(--paper-2);
+}
+
+.address-map.ready {
+  display: block;
 }
 
 .cart-summary {

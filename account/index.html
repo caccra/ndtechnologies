@@ -116,7 +116,11 @@
           <form id="addressForm" style="display:none;margin-top:16px;max-width:440px;" class="contact-form-wrap">
             <div class="admin-error" id="addressError" style="display:none;background:#FCE8E4;color:#B0301A;border-radius:var(--radius);padding:11px 14px;font-size:13px;margin-bottom:16px;"></div>
             <div class="form-group"><label>Label</label><input type="text" id="addrLabel" placeholder="e.g. Home, Office" /></div>
-            <div class="form-group"><label>Address *</label><input type="text" id="addrText" required placeholder="Area / landmark, Kampala" /></div>
+            <div class="form-group">
+              <label>Address *</label>
+              <input type="text" id="addrText" required placeholder="Search or type your address..." autocomplete="off" />
+              <div class="address-map" id="addrMap"></div>
+            </div>
             <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:16px;"><input type="checkbox" id="addrDefault" style="width:auto;" /> Set as default</label>
             <div style="display:flex;gap:10px;">
               <button type="submit" class="btn btn-primary" id="addressSaveBtn" style="flex:1;justify-content:center;">Save Address</button>
@@ -195,6 +199,8 @@
 <script src="/assets/script.js" defer></script>
 <script src="/assets/cart.js"></script>
 <script src="/assets/supabase-config.js"></script>
+<script src="/assets/maps-config.js"></script>
+<script src="/assets/address-map.js"></script>
 <script>
   const STATUS_LABELS = {
     pending: 'Pending', paid: 'Paid', in_progress: 'In Progress',
@@ -410,6 +416,7 @@
           <span class="review-card-date">${fmtDate(r.created_at)}</span>
         </div>
         ${r.comment ? `<p>${esc(r.comment)}</p>` : ''}
+        ${r.image_urls && r.image_urls.length ? `<div class="review-image-gallery">${r.image_urls.map(u => `<img src="${esc(u)}" alt="" loading="lazy" />`).join('')}</div>` : ''}
         <button type="button" class="checkout-link" style="margin-top:10px;" data-delete-review="${r.id}">Delete</button>
       </div>`).join('');
 
@@ -480,14 +487,25 @@
     }
   }
 
+  let addrPickedLocation = null;
+
   document.getElementById('addAddressBtn').addEventListener('click', () => {
     document.getElementById('addressForm').style.display = 'block';
     document.getElementById('addAddressBtn').style.display = 'none';
+    addrPickedLocation = null;
+    const addrTextEl = document.getElementById('addrText');
+    addrTextEl.addEventListener('input', () => { addrPickedLocation = null; });
+    initAddressMap({
+      containerEl: document.getElementById('addrMap'),
+      searchInputEl: addrTextEl,
+      onChange: ({ lat, lng }) => { addrPickedLocation = { lat, lng }; },
+    });
   });
   document.getElementById('addressCancelBtn').addEventListener('click', () => {
     document.getElementById('addressForm').style.display = 'none';
     document.getElementById('addAddressBtn').style.display = 'inline-flex';
     document.getElementById('addressForm').reset();
+    addrPickedLocation = null;
   });
   document.getElementById('addressForm').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -505,6 +523,8 @@
       customer_id: currentUser.id,
       label: document.getElementById('addrLabel').value.trim() || null,
       address_text: document.getElementById('addrText').value.trim(),
+      lat: addrPickedLocation ? addrPickedLocation.lat : null,
+      lng: addrPickedLocation ? addrPickedLocation.lng : null,
       is_default: isDefault,
     });
 

@@ -294,6 +294,20 @@
     const avg = reviews.length ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length : 0;
     const myReview = reviewUser ? reviews.find(r => r.customer_id === reviewUser.id) : null;
 
+    // Only customers whose order for this product has actually been
+    // delivered (status = fulfilled) may review it — checked here for the
+    // UI, and enforced again by RLS on the insert itself.
+    let eligible = false;
+    if (reviewUser && !myReview) {
+      const { data: eligibleOrders } = await supabaseClient
+        .from('order_items')
+        .select('order_id, orders!inner(status, customer_id)')
+        .eq('product_id', currentProduct.id)
+        .eq('orders.customer_id', reviewUser.id)
+        .eq('orders.status', 'fulfilled');
+      eligible = !!(eligibleOrders && eligibleOrders.length);
+    }
+
     const summaryHtml = `
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:28px;">
         ${starsHtml(Math.round(avg))}
@@ -312,6 +326,7 @@
               <span class="review-card-date">${fmtReviewDate(r.created_at)}</span>
             </div>
             ${r.comment ? `<p>${escHtml(r.comment)}</p>` : ''}
+            ${reviewImagesHtml(r.image_urls)}
           </div>`).join('')}</div>`
       : `<p style="color:var(--text-muted);margin-bottom:32px;">No reviews yet — be the first to review this product.</p>`;
 
@@ -320,6 +335,8 @@
       formHtml = `<p style="font-size:13.5px;color:var(--text-muted);"><a href="/account/login/?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}">Log in</a> to leave a review.</p>`;
     } else if (myReview) {
       formHtml = `<p style="font-size:13.5px;color:var(--text-muted);">You've already reviewed this product. <button type="button" id="deleteReviewBtn" class="checkout-link">Delete my review</button></p>`;
+    } else if (!eligible) {
+      formHtml = `<p style="font-size:13.5px;color:var(--text-muted);">You can review this product once your order for it has been delivered.</p>`;
     } else {
       formHtml = `
         <div class="contact-form-wrap" style="max-width:480px;">
@@ -328,6 +345,11 @@
           <form id="reviewForm">
             <div class="form-group"><label>Your Rating</label>${starsHtml(0, true)}</div>
             <div class="form-group"><label>Comment</label><textarea id="reviewComment" placeholder="Optional"></textarea></div>
+            <div class="form-group">
+              <label>Photos</label>
+              <input type="file" id="reviewPhotos" accept="image/*" capture="environment" multiple />
+              <div id="reviewPhotoPreview" class="review-photo-thumbs"></div>
+            </div>
             <button type="submit" class="btn btn-primary" id="reviewSubmitBtn" style="width:100%;justify-content:center;">Submit Review</button>
           </form>
         </div>`;
@@ -343,7 +365,7 @@
       });
       return;
     }
-    if (!reviewUser) return;
+    if (!reviewUser || !eligible) return;
 
     let selectedRating = 0;
     const starEls = wrap.querySelectorAll('#reviewStars svg');
@@ -352,6 +374,13 @@
         selectedRating = Number(el.dataset.star);
         starEls.forEach(s => s.classList.toggle('filled', Number(s.dataset.star) <= selectedRating));
       });
+    });
+
+    let selectedFiles = [];
+    document.getElementById('reviewPhotos').addEventListener('change', (e) => {
+      selectedFiles = Array.from(e.target.files || []);
+      const preview = document.getElementById('reviewPhotoPreview');
+      preview.innerHTML = selectedFiles.map(f => `<img src="${URL.createObjectURL(f)}" alt="" />`).join('');
     });
 
     document.getElementById('reviewForm').addEventListener('submit', async (e) => {
@@ -368,6 +397,24 @@
       btn.disabled = true;
       btn.textContent = 'Submitting...';
 
+      let imageUrls = [];
+      try {
+        for (const file of selectedFiles) {
+          const ext = file.name.split('.').pop();
+          const path = `${reviewUser.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+          const { error: uploadError } = await supabaseClient.storage.from('review-images').upload(path, file);
+          if (uploadError) throw uploadError;
+          const { data: pub } = supabaseClient.storage.from('review-images').getPublicUrl(path);
+          imageUrls.push(pub.publicUrl);
+        }
+      } catch (uploadErr) {
+        btn.disabled = false;
+        btn.textContent = 'Submit Review';
+        errorBox.textContent = 'Could not upload photos: ' + uploadErr.message;
+        errorBox.style.display = 'block';
+        return;
+      }
+
       const { data: profile } = await supabaseClient.from('profiles').select('full_name').eq('id', reviewUser.id).single();
 
       const { error: insertError } = await supabaseClient.from('reviews').insert({
@@ -376,6 +423,7 @@
         reviewer_name: (profile && profile.full_name) || reviewUser.email.split('@')[0],
         rating: selectedRating,
         comment: document.getElementById('reviewComment').value.trim() || null,
+        image_urls: imageUrls.length ? imageUrls : null,
       });
 
       btn.disabled = false;
@@ -388,6 +436,11 @@
       }
       loadReviews();
     });
+  }
+
+  function reviewImagesHtml(urls) {
+    if (!urls || !urls.length) return '';
+    return `<div class="review-image-gallery">${urls.map(u => `<img src="${escHtml(u)}" alt="" loading="lazy" />`).join('')}</div>`;
   }
 
   function escHtml(s) {

@@ -86,6 +86,8 @@ create table if not exists orders (
   payment_tx_ref text unique,                            -- our generated reference, sent to Flutterwave
   payment_flw_id text,                                   -- Flutterwave's transaction id, filled in after verification
   email_verified boolean not null default false,          -- customer completed email OTP verification at checkout
+  delivery_lat numeric,                                   -- set when the delivery address was picked/adjusted on the map
+  delivery_lng numeric,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -93,6 +95,8 @@ create table if not exists orders (
 alter table orders add column if not exists payment_provider text default 'flutterwave';
 alter table orders add column if not exists email_verified boolean not null default false;
 alter table orders add column if not exists customer_id uuid references auth.users(id) on delete set null;
+alter table orders add column if not exists delivery_lat numeric;
+alter table orders add column if not exists delivery_lng numeric;
 
 -- widen the status check to add in_progress/dispatched (safe to re-run)
 alter table orders drop constraint if exists orders_status_check;
@@ -138,9 +142,14 @@ create table if not exists addresses (
   customer_id uuid not null references auth.users(id) on delete cascade,
   label text,                      -- e.g. "Home", "Office"
   address_text text not null,
+  lat numeric,                     -- set when picked/adjusted on the map; null for older/typed-only addresses
+  lng numeric,
   is_default boolean not null default false,
   created_at timestamptz not null default now()
 );
+
+alter table addresses add column if not exists lat numeric;
+alter table addresses add column if not exists lng numeric;
 
 create index if not exists addresses_customer_idx on addresses (customer_id);
 
@@ -167,9 +176,12 @@ create table if not exists reviews (
   reviewer_name text not null default 'Customer',  -- snapshot at submit time; reviews are public but profiles aren't, same reasoning as order_items.product_name
   rating integer not null check (rating between 1 and 5),
   comment text,
+  image_urls text[],                -- photos the reviewer uploaded, from the review-images bucket
   created_at timestamptz not null default now(),
   unique (product_id, customer_id)
 );
+
+alter table reviews add column if not exists image_urls text[];
 
 create index if not exists reviews_product_idx on reviews (product_id);
 
@@ -304,9 +316,21 @@ create policy "public read reviews" on reviews
   for select using (true);
 
 -- Reviews: a customer manages only their own
+-- A review can only be created by its own customer, and only for a product
+-- from one of their fulfilled (delivered) orders — enforced here, not just
+-- in the UI, since RLS is what actually stops a direct API call.
 drop policy if exists "customer insert own reviews" on reviews;
 create policy "customer insert own reviews" on reviews
-  for insert with check (customer_id = auth.uid());
+  for insert with check (
+    customer_id = auth.uid()
+    and exists (
+      select 1 from order_items
+      join orders on orders.id = order_items.order_id
+      where order_items.product_id = reviews.product_id
+        and orders.customer_id = auth.uid()
+        and orders.status = 'fulfilled'
+    )
+  );
 drop policy if exists "customer update own reviews" on reviews;
 create policy "customer update own reviews" on reviews
   for update using (customer_id = auth.uid());
@@ -333,3 +357,25 @@ create policy "admin upload product images" on storage.objects
 drop policy if exists "admin delete product images" on storage.objects;
 create policy "admin delete product images" on storage.objects
   for delete using (bucket_id = 'product-images' and is_admin());
+
+-- ══════════════════════════════════════════
+-- STORAGE — review photos
+-- Public bucket for photos a customer attaches to their review. Files are
+-- uploaded under "<customer_id>/filename" so RLS can scope uploads/deletes
+-- to each customer's own folder.
+-- ══════════════════════════════════════════
+insert into storage.buckets (id, name, public)
+  values ('review-images', 'review-images', true)
+  on conflict (id) do nothing;
+
+drop policy if exists "public read review images" on storage.objects;
+create policy "public read review images" on storage.objects
+  for select using (bucket_id = 'review-images');
+
+drop policy if exists "customer upload own review images" on storage.objects;
+create policy "customer upload own review images" on storage.objects
+  for insert with check (bucket_id = 'review-images' and (storage.foldername(name))[1] = auth.uid()::text);
+
+drop policy if exists "customer delete own review images" on storage.objects;
+create policy "customer delete own review images" on storage.objects
+  for delete using (bucket_id = 'review-images' and (storage.foldername(name))[1] = auth.uid()::text);

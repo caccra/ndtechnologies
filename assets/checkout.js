@@ -24,6 +24,7 @@ const checkout = {
 };
 
 let resendTimer = null;
+let pickedLocation = null;  // { lat, lng } from the map picker, cleared whenever the address text is edited by hand
 
 function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -166,8 +167,11 @@ function renderCheckoutSidebar() {
 function step1Html() {
   const c = checkout.customer || {};
   const loggedIn = !!checkout.loggedInUser;
-  const btnLabel = loggedIn || !REQUIRE_EMAIL_VERIFICATION ? 'Continue to Payment →' : 'Send Verification Code →';
   const hasSaved = loggedIn && checkout.savedAddresses.length > 0;
+  // A registered customer already gave us their name/phone at signup — no
+  // need to ask again at checkout, just where to deliver. Only fall back to
+  // the full form if either is somehow still missing (e.g. an older account).
+  const skipContactFields = loggedIn && c.name && c.phone;
 
   const addressFieldHtml = hasSaved && !checkout.useNewAddress
     ? `<div class="form-group">
@@ -177,7 +181,28 @@ function step1Html() {
           <option value="__new__">+ Use a new address</option>
         </select>
       </div>`
-    : `<div class="form-group"><label>Delivery Address *</label><input type="text" id="custAddress" required placeholder="Area / landmark, Kampala" value="${esc(c.address || '')}" /></div>`;
+    : `<div class="form-group">
+        <label>Delivery Address *</label>
+        <input type="text" id="custAddress" required placeholder="Search or type your address..." value="${esc(c.address || '')}" autocomplete="off" />
+        <div class="address-map" id="addressMap"></div>
+      </div>`;
+
+  if (skipContactFields) {
+    return `
+      <div class="contact-form-wrap checkout-step">
+        <div class="checkout-step-label">Step 1 of ${TOTAL_STEPS} — Delivery Address</div>
+        <h3 style="font-size:16px;">Where should we deliver?</h3>
+        <p style="margin-bottom:18px;">Deliver to <strong>${esc(c.name)}</strong> · ${esc(c.phone)}</p>
+        <div class="admin-error" id="checkoutError"></div>
+        <form id="detailsForm">
+          ${addressFieldHtml}
+          <div class="form-group"><label>Notes</label><textarea id="custNotes" placeholder="Optional">${esc(c.notes || '')}</textarea></div>
+          <button type="submit" class="btn btn-primary" id="detailsBtn" style="width:100%;justify-content:center;">Continue to Payment →</button>
+        </form>
+      </div>`;
+  }
+
+  const btnLabel = loggedIn || !REQUIRE_EMAIL_VERIFICATION ? 'Continue to Payment →' : 'Send Verification Code →';
 
   return `
     <div class="contact-form-wrap checkout-step">
@@ -283,6 +308,22 @@ function bindStepEvents() {
     });
   }
 
+  const addressInput = document.getElementById('custAddress');
+  const addressMapEl = document.getElementById('addressMap');
+  if (addressInput && addressMapEl) {
+    const c = checkout.customer || {};
+    pickedLocation = (c.lat != null && c.lng != null) ? { lat: c.lat, lng: c.lng } : null;
+    addressInput.addEventListener('input', () => { pickedLocation = null; });
+    initAddressMap({
+      containerEl: addressMapEl,
+      searchInputEl: addressInput,
+      initialAddress: c.address,
+      initialLat: c.lat,
+      initialLng: c.lng,
+      onChange: ({ lat, lng }) => { pickedLocation = { lat, lng }; },
+    });
+  }
+
   const otpForm = document.getElementById('otpForm');
   if (otpForm) {
     otpForm.addEventListener('submit', handleOtpSubmit);
@@ -332,12 +373,19 @@ async function handleDetailsSubmit(e) {
   const errorBox = document.getElementById('checkoutError');
   errorBox.style.display = 'none';
 
-  const name = document.getElementById('custName').value.trim();
-  const email = document.getElementById('custEmail').value.trim();
+  // The condensed logged-in flow (see step1Html) doesn't render name/email/phone
+  // inputs at all — fall back to what we already have from their profile.
+  const nameEl = document.getElementById('custName');
+  const emailEl = document.getElementById('custEmail');
+  const phoneEl = document.getElementById('custPhone');
+  const prior = checkout.customer || {};
+
+  const name = nameEl ? nameEl.value.trim() : (prior.name || '');
+  const email = emailEl ? emailEl.value.trim() : (prior.email || '');
   const addressField = document.getElementById('custAddress') || document.getElementById('custAddressSelect');
   const address = addressField.value.trim();
   const notes = document.getElementById('custNotes').value.trim();
-  const phone = normalizePhoneUG(document.getElementById('custPhone').value);
+  const phone = normalizePhoneUG(phoneEl ? phoneEl.value : (prior.phone || ''));
 
   if (!/^\+256\d{9}$/.test(phone)) {
     errorBox.textContent = 'Enter a valid Uganda phone number, e.g. 0704 399 665.';
@@ -350,8 +398,19 @@ async function handleDetailsSubmit(e) {
     return;
   }
 
+  // lat/lng comes from whichever address source was used: a map pick/drag
+  // on the free-text field, or a saved address that already has coordinates.
+  let lat = null, lng = null;
+  if (addressField.id === 'custAddress' && pickedLocation) {
+    lat = pickedLocation.lat;
+    lng = pickedLocation.lng;
+  } else if (addressField.id === 'custAddressSelect') {
+    const match = checkout.savedAddresses.find(a => a.address_text === address);
+    if (match) { lat = match.lat; lng = match.lng; }
+  }
+
   const emailChanged = checkout.customer && checkout.customer.email !== email;
-  checkout.customer = { name, phone, email, address, notes };
+  checkout.customer = { name, phone, email, address, notes, lat, lng };
   if (emailChanged) checkout.emailVerified = false;
 
   // A real account is stronger proof of contact than a one-off email code —
@@ -487,6 +546,8 @@ async function handlePlaceOrder() {
       customer_phone: customer.phone,
       customer_email: customer.email,
       delivery_address: customer.address,
+      delivery_lat: customer.lat != null ? customer.lat : null,
+      delivery_lng: customer.lng != null ? customer.lng : null,
       notes: customer.notes || null,
       subtotal: total,
       total: total,

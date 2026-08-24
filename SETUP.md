@@ -140,6 +140,24 @@ your business) and you're accepting real payments.
 
 ---
 
+## 7. Google Maps address picker (optional)
+
+At checkout and in the Address Book, customers can search for their address
+and drag a pin to fine-tune the exact delivery spot. Without this step the
+address field still works as a plain text box — it just won't show a map.
+
+1. Go to [console.cloud.google.com](https://console.cloud.google.com) → create a project (or use an existing one).
+2. **APIs & Services → Library** → enable **Maps JavaScript API** and **Places API**.
+3. **APIs & Services → Credentials → Create Credentials → API Key**.
+4. Click the new key → under **Application restrictions**, choose **Websites** and add your domain (e.g. `ndelectronictechnologies.com/*`). Under **API restrictions**, limit it to the two APIs above.
+5. Open `assets/maps-config.js` and paste in the key:
+   ```js
+   const GOOGLE_MAPS_API_KEY = 'AIzaSy...';
+   ```
+6. Google requires a billing card on file to create the key, even though a small shop's map usage stays well within the free monthly credit (Google currently gives $200/month free, and each map load/search is a fraction of a cent).
+
+---
+
 ## Where things live
 
 | What | Where |
@@ -152,9 +170,11 @@ your business) and you're accepting real payments.
 | Email verification (OTP) | Supabase Auth (built-in, or Custom SMTP for production) |
 | Payment | Flutterwave (Mobile Money + cards) or Cash on Delivery |
 | Payment verification | Supabase Edge Function, `supabase/functions/verify-payment` |
+| Address map picker | Google Maps JavaScript API + Places API (`assets/maps-config.js`, `assets/address-map.js`) |
 
 ## Costs
 
 - Supabase free tier: enough for a small shop (500MB database, 1GB file storage, 50k monthly active users). No card required to start.
 - Flutterwave: no monthly fee, they take a percentage per successful transaction (check their current Uganda pricing on their site — it changes).
 - Email sending (Resend/Brevo/SendGrid): free tiers cover thousands of emails a month, comfortably enough for verification codes at small-shop volume. Cash on Delivery orders don't need Flutterwave at all, just email verification.
+- Google Maps: requires a billing card, but the $200/month free credit comfortably covers a small shop's checkout/address-book map usage.
