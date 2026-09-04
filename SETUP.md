@@ -124,7 +124,40 @@ as paid. This function lives in `supabase/functions/verify-payment/`.
 
 ---
 
-## 6. Test it end-to-end
+## 6. Order confirmation & admin notification emails
+
+Once an order is placed, two emails go out automatically: a confirmation to
+the customer (once it's actually confirmed — immediately for Cash on
+Delivery, or once payment clears for Mobile Money/card), and a "new order"
+alert to you, so you know to start preparing it. This is separate from the
+checkout verification code in section 4 — that's Supabase's own auth email
+sender; these are proper order emails sent through Resend, a dedicated
+transactional email service.
+
+1. Go to [resend.com](https://resend.com) → sign up (free tier: 3,000 emails/month, comfortably enough for a small shop).
+2. **Domains → Add Domain** → add `ndelectronictechnologies.com` and follow their DNS verification steps (adds a couple of DNS records at wherever your domain is registered). Until this is verified, you can still test using Resend's shared `onboarding@resend.dev` sender address.
+3. **API Keys → Create API Key** → copy it (starts with `re_`).
+4. Deploy the function and set its secrets:
+   ```
+   supabase functions deploy send-order-notifications
+   supabase secrets set RESEND_API_KEY=re_xxxxxxxx
+   supabase secrets set RESEND_FROM="ND Electronic Technologies <orders@ndelectronictechnologies.com>"
+   supabase secrets set ADMIN_NOTIFY_EMAIL=info@ndelectronictechnologies.com,sales@ndelectronictechnologies.com
+   ```
+   (`RESEND_FROM` must use your verified domain from step 2 — use `onboarding@resend.dev` there instead if you're still testing before DNS verification finishes. `ADMIN_NOTIFY_EMAIL` accepts one address or several, comma-separated.)
+5. `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are the same ones you already set for `verify-payment` in step 5 — no need to set them again for this function.
+
+This already works via a fallback call built into `assets/checkout.js` — no
+further setup required to start receiving emails. For a more reliable setup
+that doesn't depend on the customer's browser staying open (recommended
+before relying on this for real orders):
+
+6. In Supabase: **Database → Webhooks → Create a new webhook**.
+7. Create one for **INSERT** on the `orders` table, and another for **UPDATE** on the `orders` table — both calling the `send-order-notifications` Edge Function. (The function figures out on its own what's changed and whether an email is actually due — see the comments at the top of `supabase/functions/send-order-notifications/index.ts`.)
+
+---
+
+## 7. Test it end-to-end
 
 1. Add a product in `admin/products.html`.
 2. Open `shop.html`, add it to your cart, go to `cart.html`, and fill in the delivery details (optionally register/log in first at `/account/register/` to have the order linked to your account).
@@ -140,7 +173,7 @@ your business) and you're accepting real payments.
 
 ---
 
-## 7. Google Maps address picker (optional)
+## 8. Google Maps address picker (optional)
 
 At checkout and in the Address Book, customers can search for their address
 and drag a pin to fine-tune the exact delivery spot. Without this step the
@@ -170,11 +203,12 @@ address field still works as a plain text box — it just won't show a map.
 | Email verification (OTP) | Supabase Auth (built-in, or Custom SMTP for production) |
 | Payment | Flutterwave (Mobile Money + cards) or Cash on Delivery |
 | Payment verification | Supabase Edge Function, `supabase/functions/verify-payment` |
+| Order confirmation &amp; admin alert emails | Resend, via Supabase Edge Function `supabase/functions/send-order-notifications` |
 | Address map picker | Google Maps JavaScript API + Places API (`assets/maps-config.js`, `assets/address-map.js`) |
 
 ## Costs
 
 - Supabase free tier: enough for a small shop (500MB database, 1GB file storage, 50k monthly active users). No card required to start.
 - Flutterwave: no monthly fee, they take a percentage per successful transaction (check their current Uganda pricing on their site — it changes).
-- Email sending (Resend/Brevo/SendGrid): free tiers cover thousands of emails a month, comfortably enough for verification codes at small-shop volume. Cash on Delivery orders don't need Flutterwave at all, just email verification.
+- Email sending (Resend for order/admin emails, or Resend/Brevo/SendGrid for the Custom SMTP verification codes): free tiers cover thousands of emails a month, comfortably enough for a small shop's order and verification volume combined. Cash on Delivery orders don't need Flutterwave at all, just the order-confirmation email.
 - Google Maps: requires a billing card, but the $200/month free credit comfortably covers a small shop's checkout/address-book map usage.

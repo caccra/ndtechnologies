@@ -98,6 +98,13 @@ alter table orders add column if not exists customer_id uuid references auth.use
 alter table orders add column if not exists delivery_lat numeric;
 alter table orders add column if not exists delivery_lng numeric;
 
+-- Idempotency guards for the order-notification emails (see
+-- supabase/functions/send-order-notifications) — set the moment each email
+-- actually sends, so a webhook firing twice (or the client-side fallback
+-- call racing the webhook) can never send the same email twice.
+alter table orders add column if not exists customer_email_sent_at timestamptz;
+alter table orders add column if not exists admin_email_sent_at timestamptz;
+
 -- widen the status check to add in_progress/dispatched (safe to re-run)
 alter table orders drop constraint if exists orders_status_check;
 alter table orders add constraint orders_status_check
@@ -260,6 +267,18 @@ create policy "admin update orders" on orders
 drop policy if exists "customer read own orders" on orders;
 create policy "customer read own orders" on orders
   for select using (customer_id = auth.uid());
+
+-- Orders: a newly-registered customer can claim a guest order placed under
+-- their own email — this is how "create an account after checkout" links a
+-- just-placed guest order into the new account's order history. Scoped
+-- tightly: only unclaimed orders (customer_id still null), only where the
+-- order's stored email matches the caller's own verified account email, and
+-- the caller may only ever set customer_id to themselves.
+drop policy if exists "customer claim own guest order" on orders;
+create policy "customer claim own guest order" on orders
+  for update
+  using (customer_id is null and customer_email = (auth.jwt() ->> 'email'))
+  with check (customer_id = auth.uid() and customer_email = (auth.jwt() ->> 'email'));
 
 -- The payment verification Edge Function uses the service_role key, which
 -- bypasses RLS entirely — that's how it's allowed to flip a pending order to paid.

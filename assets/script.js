@@ -127,7 +127,7 @@
     </symbol>
   </defs>`;
 
-  const LOGO_IMG = '<img src="/assets/images/nd-electronic-logo.png" alt="ND Electronic Technologies Ltd" />';
+  const LOGO_IMG = '<img src="/assets/images/nd-logo-clean.jpg" alt="ND Electronic Technologies Ltd" />';
 
   function init() {
     // icon sprite (hidden, reused via <use>)

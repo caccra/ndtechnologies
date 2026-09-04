@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Reset Your Password — ND Electronic Technologies Ltd</title>
-<link rel="canonical" href="https://ndelectronictechnologies.com/account/forgot-password/" />
+<title>Email Confirmed — ND Electronic Technologies Ltd</title>
+<link rel="canonical" href="https://ndelectronictechnologies.com/account/email-confirmed/" />
 <meta name="robots" content="noindex, follow" />
 <link rel="icon" type="image/jpeg" href="/assets/images/nd-logo-clean.jpg" />
 <link rel="apple-touch-icon" href="/assets/images/nd-logo-clean.jpg" />
@@ -45,24 +45,15 @@
   <a href="/about/" data-nav="about">About</a>
   <a href="/contact/" data-nav="contact">Contact</a>
   <a href="/account/">My Account</a>
-  <a href="/cart/">Cart (<span data-cart-count style="display:inline">0</span>)</a>
   <a href="/account/" class="btn btn-primary">My Account</a>
 </div>
 
 <section style="padding-top:140px;padding-bottom:120px;">
-  <div class="container" style="max-width:440px;">
-    <div class="contact-form-wrap" id="formWrap">
-      <div class="eyebrow" style="justify-content:center;display:flex;">Account Recovery</div>
-      <h3 style="text-align:center;">Reset Your Password</h3>
-      <p style="text-align:center;">Enter your email and we'll send you a reset link.</p>
-      <div class="admin-error" id="formError" style="display:none;background:#FCE8E4;color:#B0301A;border-radius:var(--radius);padding:11px 14px;font-size:13px;margin-bottom:16px;"></div>
-      <form id="resetForm">
-        <div class="form-group"><label>Email</label><input type="email" id="email" required autocomplete="username" /></div>
-        <button type="submit" class="btn btn-primary" id="resetBtn" style="width:100%;justify-content:center;">Send Reset Link</button>
-      </form>
-      <p style="text-align:center;margin-top:18px;font-size:13.5px;">
-        <a href="/account/login/">Back to Log In</a>
-      </p>
+  <div class="container" style="max-width:460px;">
+    <div class="contact-form-wrap" style="text-align:center;" id="confirmWrap">
+      <div class="eyebrow" style="justify-content:center;display:flex;">Almost There</div>
+      <h3>Checking your confirmation…</h3>
+      <p>One moment.</p>
     </div>
   </div>
 </section>
@@ -82,33 +73,48 @@
 <script src="/assets/cart.js"></script>
 <script src="/assets/supabase-config.js"></script>
 <script>
-  document.getElementById('resetForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const errorBox = document.getElementById('formError');
-    errorBox.style.display = 'none';
-    const btn = document.getElementById('resetBtn');
-    btn.disabled = true;
-    btn.textContent = 'Sending...';
+  // Supabase's confirmation link verifies the token server-side, then lands
+  // the browser here. Depending on how the project's email flow is
+  // configured, that either (a) establishes a live session right away, or
+  // (b) just marks the account confirmed with no session — this page
+  // handles both, since there's no reliable way to know which in advance.
+  (async function () {
+    const wrap = document.getElementById('confirmWrap');
 
-    const email = document.getElementById('email').value.trim();
-    const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin + '/account/reset-password/',
-    });
+    // Supabase Auth also uses this same redirect target for other link
+    // types (invite, magic link, password recovery) — surface those
+    // distinctly rather than always claiming "email confirmed".
+    const params = new URLSearchParams(window.location.hash.replace(/^#/, '') || window.location.search);
+    const errorDescription = params.get('error_description');
 
-    if (error) {
-      btn.disabled = false;
-      btn.textContent = 'Send Reset Link';
-      errorBox.textContent = error.message;
-      errorBox.style.display = 'block';
+    if (errorDescription) {
+      wrap.innerHTML = `
+        <div class="eyebrow" style="justify-content:center;display:flex;">Link Problem</div>
+        <h3>This link didn't work</h3>
+        <p>${errorDescription.replace(/[<>&"]/g, '')}</p>
+        <p style="margin-top:18px;"><a href="/account/register/">Try registering again</a> or <a href="/account/login/">log in</a> if you already confirmed a different way.</p>
+      `;
       return;
     }
 
-    document.getElementById('formWrap').innerHTML =
-      '<div class="eyebrow" style="justify-content:center;display:flex;">Check Your Email</div>' +
-      '<h3 style="text-align:center;">Reset link sent</h3>' +
-      '<p style="text-align:center;">If an account exists for that email, a password reset link is on its way. Click it to set a new password.</p>' +
-      '<p style="text-align:center;margin-top:18px;font-size:13.5px;"><a href="/account/login/">Back to Log In</a></p>';
-  });
+    const { data: { session } } = await supabaseClient.auth.getSession();
+
+    if (session) {
+      wrap.innerHTML = `
+        <div class="eyebrow" style="justify-content:center;display:flex;">All Set</div>
+        <h3>Email confirmed — you're logged in</h3>
+        <p>Your account is ready to go.</p>
+        <a href="/account/" class="btn btn-primary" style="width:100%;justify-content:center;margin-top:18px;">Go to My Account →</a>
+      `;
+    } else {
+      wrap.innerHTML = `
+        <div class="eyebrow" style="justify-content:center;display:flex;">All Set</div>
+        <h3>Your email is confirmed</h3>
+        <p>You can now log in with your email and password.</p>
+        <a href="/account/login/" class="btn btn-primary" style="width:100%;justify-content:center;margin-top:18px;">Go to Login →</a>
+      `;
+    }
+  })();
 </script>
 </body>
 </html>

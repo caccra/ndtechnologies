@@ -2448,6 +2448,19 @@ nav.scrolled {
   padding: 8px 0;
 }
 
+.order-summary-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13.5px;
+  color: var(--text-body);
+  padding: 6px 0;
+}
+
+.order-summary-qty {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
 .cart-summary-row.total {
   font-weight: 700;
   font-size: 17px;

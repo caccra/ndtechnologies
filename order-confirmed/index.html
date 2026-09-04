@@ -6,12 +6,13 @@
 <title>Order Received — ND Electronic Technologies Ltd</title>
 <link rel="canonical" href="https://ndelectronictechnologies.com/order-confirmed/" />
 <meta name="robots" content="noindex, follow" />
-<link rel="icon" type="image/png" href="/assets/images/nd-electronic-logo.png" />
-<link rel="apple-touch-icon" href="/assets/images/nd-electronic-logo.png" />
+<link rel="icon" type="image/jpeg" href="/assets/images/nd-logo-clean.jpg" />
+<link rel="apple-touch-icon" href="/assets/images/nd-logo-clean.jpg" />
 <meta name="theme-color" content="#0a1628" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Poppins:wght@500;600;700&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/assets/styles.css" />
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body data-page="shop">
 
@@ -43,17 +44,24 @@
   <a href="/account/" class="btn btn-primary">My Account</a>
 </div>
 
-<section style="padding-top:180px;padding-bottom:140px;text-align:center;">
-  <div class="container">
-    <div class="eyebrow" style="justify-content:center;display:inline-block;">Order Received</div>
-    <h1 class="section-title">Thank you — your order is in.</h1>
-    <p class="section-sub" style="margin:0 auto 8px;">Reference: <strong id="refText">—</strong></p>
-    <p class="section-sub" style="margin:0 auto 32px;" id="confirmText">We're confirming your payment now. You'll be contacted on the phone number you provided to arrange delivery.</p>
-    <a href="/shop/" class="btn btn-primary">Continue Shopping →</a>
+<section style="padding-top:160px;padding-bottom:120px;">
+  <div class="container" style="max-width:640px;">
+    <div style="text-align:center;">
+      <div class="eyebrow" style="justify-content:center;display:inline-block;">Order Received</div>
+      <h1 class="section-title">Thank you — your order is in.</h1>
+      <p class="section-sub" style="margin:0 auto 32px;" id="confirmText">We're confirming your payment now. You'll be contacted on the phone number you provided to arrange delivery.</p>
+    </div>
+
+    <div id="orderSummary"></div>
+    <div id="accountOffer"></div>
+
+    <div style="text-align:center;margin-top:28px;">
+      <a href="/shop/" class="btn btn-primary">Continue Shopping →</a>
+    </div>
   </div>
 </section>
 
-<footer>
+<footer style="margin-top:0;">
   <div class="footer-bottom" style="border-top:none;padding-top:0;">
     <span>© <span id="copyrightYears">2021–2026</span> ND Electronic Technologies Ltd. All rights reserved.</span>
     <span>Lukuli, Nanganda — Kampala, Uganda</span>
@@ -65,14 +73,131 @@
 </a>
 
 <script src="/assets/script.js" defer></script>
+<script src="/assets/cart.js"></script>
+<script src="/assets/supabase-config.js"></script>
 <script>
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
   const params = new URLSearchParams(window.location.search);
   const ref = params.get('ref');
-  if (ref) document.getElementById('refText').textContent = ref;
-  if (params.get('method') === 'cod') {
-    document.getElementById('confirmText').textContent =
-      'Your order is confirmed for Cash on Delivery. Please have the exact amount ready — you’ll be contacted on the phone number you provided to arrange delivery.';
+  const isCod = params.get('method') === 'cod';
+
+  document.getElementById('confirmText').innerHTML = ref
+    ? 'Reference: <strong>' + esc(ref) + '</strong>'
+    : '';
+
+  if (isCod) {
+    const p = document.createElement('p');
+    p.className = 'section-sub';
+    p.style.cssText = 'margin:0 auto 8px;';
+    p.textContent = 'Your order is confirmed for Cash on Delivery. Please have the exact amount ready — you’ll be contacted on the phone number you provided to arrange delivery.';
+    document.getElementById('confirmText').after(p);
+  } else {
+    const p = document.createElement('p');
+    p.className = 'section-sub';
+    p.style.cssText = 'margin:0 auto 8px;';
+    p.textContent = 'We’re confirming your payment now — this usually takes a few seconds. You’ll be contacted on the phone number you provided to arrange delivery.';
+    document.getElementById('confirmText').after(p);
   }
+
+  // ── Order summary, from the same data the checkout page already had at
+  // insert time (a guest can't safely re-query their own order — see
+  // schema.sql — so this is handed forward via sessionStorage instead). ──
+  let orderData = null;
+  try { orderData = JSON.parse(sessionStorage.getItem('ndet_last_order') || 'null'); } catch {}
+  if (orderData && orderData.ref !== ref) orderData = null; // stale / different order
+
+  if (orderData) {
+    const rows = orderData.items.map(i => `
+      <div class="order-summary-row">
+        <span>${esc(i.name)} <span class="order-summary-qty">×${i.qty}</span></span>
+        <span>${formatUGX(i.price * i.qty)}</span>
+      </div>`).join('');
+
+    const methodLabel = orderData.method === 'cod' ? 'Cash on Delivery'
+      : orderData.method === 'card' ? 'Card' : 'Mobile Money';
+    const amountLabel = orderData.method === 'cod' ? 'Amount to pay on delivery' : 'Amount paid';
+
+    document.getElementById('orderSummary').innerHTML = `
+      <div class="cart-summary" style="text-align:left;margin-top:8px;">
+        <h3 style="font-size:15px;margin-bottom:14px;">Order Summary</h3>
+        ${rows}
+        <div class="cart-summary-row" style="margin-top:6px;"><span>Payment method</span><span>${esc(methodLabel)}</span></div>
+        <div class="cart-summary-row total"><span>${amountLabel}</span><span>${formatUGX(orderData.total)}</span></div>
+      </div>`;
+  }
+
+  // ── Offer to create an account, only for a guest checkout ──
+  async function renderAccountOffer() {
+    if (!orderData || orderData.loggedIn) return; // already signed in — nothing to offer
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (session) return; // they registered/logged in already (e.g. reloaded this page)
+
+    const wrap = document.getElementById('accountOffer');
+    wrap.innerHTML = `
+      <div class="contact-form-wrap" style="margin-top:24px;">
+        <div class="eyebrow" style="justify-content:center;display:flex;">Save This Order</div>
+        <h3 style="text-align:center;">Create an account to track it</h3>
+        <p style="text-align:center;">See this order any time, save your address for next time, and check out faster later.</p>
+        <div class="admin-error" id="offerError" style="display:none;background:#FCE8E4;color:#B0301A;border-radius:var(--radius);padding:11px 14px;font-size:13px;margin-bottom:16px;"></div>
+        <form id="offerForm">
+          <div class="form-group"><label>Full Name *</label><input type="text" id="offerName" required value="${esc(orderData.customerName || '')}" /></div>
+          <div class="form-group"><label>Email *</label><input type="email" id="offerEmail" required value="${esc(orderData.customerEmail || '')}" readonly style="opacity:.7;" /></div>
+          <div class="form-group"><label>Password *</label><input type="password" id="offerPassword" required minlength="6" autocomplete="new-password" /></div>
+          <button type="submit" class="btn btn-primary" id="offerBtn" style="width:100%;justify-content:center;">Create Account</button>
+        </form>
+        <p style="text-align:center;margin-top:14px;font-size:13px;color:var(--text-muted);">Not now? <a href="/shop/">Continue as guest</a></p>
+      </div>`;
+
+    document.getElementById('offerForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const errorBox = document.getElementById('offerError');
+      errorBox.style.display = 'none';
+      const btn = document.getElementById('offerBtn');
+      btn.disabled = true;
+      btn.textContent = 'Creating account...';
+
+      const fullName = document.getElementById('offerName').value.trim();
+      const email = document.getElementById('offerEmail').value.trim();
+      const password = document.getElementById('offerPassword').value;
+
+      const { data, error } = await supabaseClient.auth.signUp({
+        email, password,
+        options: { data: { full_name: fullName, phone: '' } },
+      });
+
+      if (error) {
+        btn.disabled = false;
+        btn.textContent = 'Create Account';
+        errorBox.textContent = error.message;
+        errorBox.style.display = 'block';
+        return;
+      }
+
+      // localStorage.ndet_pending_claim was already set at checkout time —
+      // claimPendingOrder() (in cart.js) picks it up as soon as a session
+      // exists, whether that's right now or after an email-confirmation link.
+      if (data.session) {
+        await claimPendingOrder();
+        wrap.innerHTML = `
+          <div class="contact-form-wrap" style="margin-top:24px;text-align:center;">
+            <div class="eyebrow" style="justify-content:center;display:flex;">All Set</div>
+            <h3>Account created</h3>
+            <p>This order is now saved to your account. <a href="/account/">View My Account →</a></p>
+          </div>`;
+      } else {
+        wrap.innerHTML = `
+          <div class="contact-form-wrap" style="margin-top:24px;text-align:center;">
+            <div class="eyebrow" style="justify-content:center;display:flex;">Almost There</div>
+            <h3>Check your email</h3>
+            <p>We sent a confirmation link to <strong>${esc(email)}</strong>. Click it, then <a href="/account/login/">log in</a> — this order will be added to your account automatically.</p>
+          </div>`;
+      }
+    });
+  }
+  renderAccountOffer();
 </script>
 </body>
 </html>

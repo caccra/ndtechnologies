@@ -6,8 +6,8 @@
 <title>My Account — ND Electronic Technologies Ltd</title>
 <link rel="canonical" href="https://ndelectronictechnologies.com/account/" />
 <meta name="robots" content="noindex, nofollow" />
-<link rel="icon" type="image/png" href="/assets/images/nd-electronic-logo.png" />
-<link rel="apple-touch-icon" href="/assets/images/nd-electronic-logo.png" />
+<link rel="icon" type="image/jpeg" href="/assets/images/nd-logo-clean.jpg" />
+<link rel="apple-touch-icon" href="/assets/images/nd-logo-clean.jpg" />
 <meta name="theme-color" content="#0a1628" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Poppins:wght@500;600;700&display=swap" rel="stylesheet" />
@@ -241,6 +241,7 @@
     }
     currentUser = session.user;
     document.getElementById('email').value = currentUser.email;
+    claimPendingOrder();
 
     const { data: profile } = await supabaseClient.from('profiles').select('full_name, phone').eq('id', currentUser.id).single();
     if (profile) {

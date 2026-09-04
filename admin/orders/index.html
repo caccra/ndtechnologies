@@ -117,9 +117,11 @@
         const newStatus = sel.value;
         if (!newStatus) return;
         sel.disabled = true;
-        const { error } = await supabaseClient.from('orders').update({ status: newStatus }).eq('id', sel.dataset.id);
+        const { data, error } = await supabaseClient.from('orders').update({ status: newStatus }).eq('id', sel.dataset.id).select();
         if (error) {
           alert('Could not update status: ' + error.message);
+        } else if (!data || !data.length) {
+          alert('Nothing was updated — your account may not have admin permissions. Check the is_admin flag in Supabase (see SETUP.md).');
         } else {
           // Powers the customer dashboard's Inbox — one row per status change.
           await supabaseClient.from('order_events').insert({ order_id: sel.dataset.id, status: newStatus });

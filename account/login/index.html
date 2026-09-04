@@ -6,8 +6,8 @@
 <title>Log In — ND Electronic Technologies Ltd</title>
 <link rel="canonical" href="https://ndelectronictechnologies.com/account/login/" />
 <meta name="robots" content="noindex, follow" />
-<link rel="icon" type="image/png" href="/assets/images/nd-electronic-logo.png" />
-<link rel="apple-touch-icon" href="/assets/images/nd-electronic-logo.png" />
+<link rel="icon" type="image/jpeg" href="/assets/images/nd-logo-clean.jpg" />
+<link rel="apple-touch-icon" href="/assets/images/nd-logo-clean.jpg" />
 <meta name="theme-color" content="#0a1628" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Poppins:wght@500;600;700&display=swap" rel="stylesheet" />
@@ -111,6 +111,7 @@
       errorBox.style.display = 'block';
       return;
     }
+    await claimPendingOrder();
     const redirect = new URLSearchParams(window.location.search).get('redirect');
     window.location.href = redirect || '/account/';
   });

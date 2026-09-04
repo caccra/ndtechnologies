@@ -570,7 +570,41 @@ async function handlePlaceOrder() {
     const { error: itemsError } = await supabaseClient.from('order_items').insert(items);
     if (itemsError) throw itemsError;
 
+    // Hand the order details forward to the confirmation page. RLS blocks a
+    // guest from reading their own order back (there's no "read by tx_ref"
+    // policy, by design — see schema.sql), so this is the safe way to show
+    // an itemized summary: pass along what we already have from this same
+    // insert, rather than re-querying it.
+    sessionStorage.setItem('ndet_last_order', JSON.stringify({
+      ref: txRef,
+      items: cart.map(i => ({ name: i.name, qty: i.qty, price: i.price })),
+      subtotal: total,
+      total: total,
+      currency: 'UGX',
+      method: method,
+      customerName: customer.name,
+      customerEmail: customer.email,
+      loggedIn: !!checkout.loggedInUser,
+    }));
+
+    // A guest (not signed in at checkout) gets the option to create an
+    // account on the confirmation page — this is what lets that later signup
+    // claim this exact order via the "customer claim own guest order" RLS
+    // policy, so it shows up in their order history.
+    if (!checkout.loggedInUser) {
+      localStorage.setItem('ndet_pending_claim', JSON.stringify({ ref: txRef, email: customer.email }));
+    }
+
     if (method === 'cod') {
+      // Fallback trigger for order-confirmation/admin-alert emails — the
+      // reliable path is a Database Webhook on `orders` (see SETUP.md), this
+      // just means emails still go out even before that's configured. Fire
+      // ­and-forget: never block the redirect on this.
+      fetch(`${SUPABASE_URL}/functions/v1/send-order-notifications`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order_id: order.id }),
+      }).catch(() => {});
       clearCart();
       window.location.href = '/order-confirmed/?ref=' + encodeURIComponent(txRef) + '&method=cod';
       return;
@@ -595,6 +629,15 @@ async function handlePlaceOrder() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ tx_ref: txRef, transaction_id: payment.transaction_id }),
+        }).catch(() => {});
+        // Fallback trigger for order emails, same reasoning as the COD path
+        // above — verify-payment has already flipped status to "paid" by
+        // the time this runs, so the customer gets the "confirmed" email
+        // (not just an admin alert) as soon as this call lands.
+        fetch(`${SUPABASE_URL}/functions/v1/send-order-notifications`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ order_id: order.id }),
         }).catch(() => {});
         clearCart();
         window.location.href = '/order-confirmed/?ref=' + encodeURIComponent(txRef);

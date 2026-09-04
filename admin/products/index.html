@@ -227,8 +227,9 @@
 
     async function deleteProduct(id) {
       if (!confirm('Delete this product? This cannot be undone.')) return;
-      const { error } = await supabaseClient.from('products').delete().eq('id', id);
+      const { data, error } = await supabaseClient.from('products').delete().eq('id', id).select();
       if (error) { alert('Could not delete: ' + error.message); return; }
+      if (!data || !data.length) { alert('Nothing was deleted — your account may not have admin permissions. Check the is_admin flag in Supabase (see SETUP.md).'); return; }
       loadProducts();
     }
 
@@ -266,8 +267,9 @@
         if (imageUrl !== undefined && imageUrl !== null) payload.image_url = imageUrl;
 
         if (editingId) {
-          const { error } = await supabaseClient.from('products').update(payload).eq('id', editingId);
+          const { data, error } = await supabaseClient.from('products').update(payload).eq('id', editingId).select();
           if (error) throw error;
+          if (!data || !data.length) throw new Error('Nothing was saved — your account may not have admin permissions. Check the is_admin flag in Supabase (see SETUP.md).');
         } else {
           payload.image_url = imageUrl;
           const { error } = await supabaseClient.from('products').insert(payload);
