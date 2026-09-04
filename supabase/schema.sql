@@ -250,10 +250,19 @@ create policy "admin manage products" on products
   for all using (is_admin())
   with check (is_admin());
 
--- Orders: anyone can create an order (checkout is public, guest or signed-in)
+-- Orders: anyone can create an order (checkout is public, guest or signed-in).
+-- Scoped tightly so a direct API call can't forge a fake "paid"/"fulfilled"
+-- order (bypassing Flutterwave verification entirely) or attribute an order
+-- to someone else's account: every new order must start pending, with no
+-- payment already recorded, and customer_id must be either null (guest) or
+-- the caller's own id.
 drop policy if exists "public create orders" on orders;
 create policy "public create orders" on orders
-  for insert with check (true);
+  for insert with check (
+    status = 'pending'
+    and payment_flw_id is null
+    and (customer_id is null or customer_id = auth.uid())
+  );
 
 -- Orders: admins can read/update all orders
 drop policy if exists "admin manage orders" on orders;
@@ -283,10 +292,16 @@ create policy "customer claim own guest order" on orders
 -- The payment verification Edge Function uses the service_role key, which
 -- bypasses RLS entirely — that's how it's allowed to flip a pending order to paid.
 
--- Order items: anyone can insert (as part of checkout)
+-- Order items: anyone can insert (as part of checkout) — but the price must
+-- match the product's actual current price. Without this, a direct API call
+-- could insert order_items with an arbitrary unit_price/line_total, forging
+-- a cheap "receipt" for an expensive product.
 drop policy if exists "public create order items" on order_items;
 create policy "public create order items" on order_items
-  for insert with check (true);
+  for insert with check (
+    line_total = unit_price * quantity
+    and unit_price = (select price from products where id = order_items.product_id)
+  );
 
 -- Order items: admins can read all
 drop policy if exists "admin read order items" on order_items;

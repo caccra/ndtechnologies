@@ -47,12 +47,23 @@
     errorBox.style.display = 'none';
     const email = document.getElementById('email').value.trim();
     const password = document.getElementById('password').value;
-    const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
     if (error) {
       errorBox.textContent = error.message;
       errorBox.style.display = 'block';
       return;
     }
+
+    // Valid credentials don't mean admin — this is the same Auth user pool
+    // as customer accounts. Check the profile flag before letting them in.
+    const { data: profile } = await supabaseClient.from('profiles').select('is_admin').eq('id', data.user.id).single();
+    if (!profile || !profile.is_admin) {
+      await supabaseClient.auth.signOut();
+      errorBox.textContent = 'This account does not have admin access.';
+      errorBox.style.display = 'block';
+      return;
+    }
+
     window.location.href = '/admin/products/';
   });
 </script>

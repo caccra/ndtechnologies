@@ -54,6 +54,16 @@
   (async function guard() {
     const { data: { session } } = await supabaseClient.auth.getSession();
     if (!session) { window.location.href = '/admin/login/'; return; }
+    // Session alone isn't enough — any registered customer has one. Confirm
+    // this account is actually flagged admin before showing anything here;
+    // RLS blocks the real data either way, but a non-admin shouldn't even
+    // see the dashboard shell.
+    const { data: profile } = await supabaseClient.from('profiles').select('is_admin').eq('id', session.user.id).single();
+    if (!profile || !profile.is_admin) {
+      await supabaseClient.auth.signOut();
+      window.location.href = '/admin/login/';
+      return;
+    }
     document.getElementById('userEmail').textContent = session.user.email;
   })();
 
