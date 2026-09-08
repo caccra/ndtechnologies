@@ -7,6 +7,7 @@
   <title>Manage Products — Admin — ND Electronic Technologies Ltd</title>
   <meta name="robots" content="noindex, nofollow" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
     href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Poppins:wght@500;600;700&display=swap"
     rel="stylesheet" />
@@ -18,21 +19,29 @@
 <body>
 
   <div class="admin-shell">
-    <div class="admin-topbar">
-      <a href="/" class="brand" id="navBrand"></a>
-      <div class="admin-topbar-right">
-        <a href="/admin/products/"
-          style="color:var(--amber);font-size:13px;font-weight:600;text-decoration:none;">Products</a>
-        <a href="/admin/orders/"
-          style="color:rgba(255,255,255,.7);font-size:13px;font-weight:600;text-decoration:none;">Orders</a>
-        <a href="/admin/customers/"
-          style="color:rgba(255,255,255,.7);font-size:13px;font-weight:600;text-decoration:none;">Customers</a>
-        <span id="userEmail"></span>
-        <button id="signOutBtn" class="btn btn-outline-dark" style="padding:8px 16px;font-size:12.5px;">Sign
-          Out</button>
-      </div>
+    <div class="admin-sidebar">
+    <a href="/" class="brand" id="navBrand"></a>
+    <div class="admin-sidebar-tag">Admin Panel</div>
+    <div class="admin-global-search" id="globalSearchBox">
+      <svg><use href="#ico-search"/></svg>
+      <input type="text" id="globalSearchInput" placeholder="Search everything…" autocomplete="off" />
+      <div id="globalSearchResults"></div>
     </div>
-
+    <div class="admin-nav">
+      <a href="/admin/"><svg><use href="#ico-dashboard"/></svg><span>Dashboard</span></a>
+      <a href="/admin/products/" class="active"><svg><use href="#ico-box"/></svg><span>Products</span></a>
+      <a href="/admin/coupons/"><svg><use href="#ico-tag"/></svg><span>Coupons</span></a>
+      <a href="/admin/orders/"><svg><use href="#ico-cash"/></svg><span>Orders</span></a>
+      <a href="/admin/leads/"><svg><use href="#ico-mail"/></svg><span>Leads</span></a>
+      <a href="/admin/reviews/"><svg><use href="#ico-star"/></svg><span>Reviews</span></a>
+      <a href="/admin/finance/"><svg><use href="#ico-chart"/></svg><span>Finance</span></a>
+      <a href="/admin/customers/"><svg><use href="#ico-user"/></svg><span>Customers</span></a>
+    </div>
+    <div class="admin-sidebar-foot">
+      <div class="admin-sidebar-user" id="userEmail"></div>
+      <button id="signOutBtn" class="btn btn-outline-dark" style="padding:8px 16px;font-size:12.5px;">Sign Out</button>
+    </div>
+  </div>
     <div class="admin-main">
       <div class="admin-head">
         <div>
@@ -42,6 +51,7 @@
       </div>
 
       <div class="admin-layout">
+        <div style="display:flex;flex-direction:column;gap:24px;">
         <div class="admin-panel">
           <h2 id="formTitle">Add a Product</h2>
           <div class="admin-error" id="formError"></div>
@@ -49,8 +59,13 @@
             <input type="hidden" id="productId" />
             <div class="admin-image-preview" id="imagePreview">No image selected</div>
             <div class="form-group">
-              <label>Product Image</label>
+              <label>Cover Image</label>
               <input type="file" id="imageFile" accept="image/*" />
+            </div>
+            <div class="form-group">
+              <label>Additional Gallery Images</label>
+              <input type="file" id="galleryFiles" accept="image/*" multiple />
+              <div class="admin-gallery-preview" id="galleryPreview"></div>
             </div>
             <div class="form-group">
               <label>Product Name *</label>
@@ -71,18 +86,18 @@
               </div>
             </div>
             <div class="form-group">
+              <label>Sale Price (UGX) — optional</label>
+              <input type="number" id="salePrice" min="0" step="1000" placeholder="Leave blank if not on sale" />
+              <p style="font-size:11.5px;color:var(--text-muted);margin-top:6px;">When set, shows as a struck-through price + "Sale" badge in the shop, and is the price customers actually pay. Must be lower than the regular price.</p>
+            </div>
+            <div class="form-group">
               <label>Category *</label>
-              <select id="category" required>
-                <option value="CCTV">CCTV</option>
-                <option value="Solar">Solar &amp; Renewable Energy</option>
-                <option value="Carports">Carshades &amp; Carports</option>
-                <option value="Fire Suppression">Fire Suppression</option>
-                <option value="Networking">Networking</option>
-                <option value="Connectivity">Internet &amp; Connectivity</option>
-                <option value="Air Conditioning">Air Conditioning</option>
-                <option value="Electrical">Electrical</option>
-                <option value="General">General</option>
-              </select>
+              <select id="category" required></select>
+            </div>
+            <div class="form-group">
+              <label>Specs — optional</label>
+              <textarea id="specs" placeholder="One per line, e.g.&#10;Resolution: 4MP&#10;Night Vision: 30m&#10;Warranty: 1 year"></textarea>
+              <p style="font-size:11.5px;color:var(--text-muted);margin-top:6px;">One "Label: Value" per line — shown as a spec table on the product page.</p>
             </div>
             <div class="form-group" style="display:flex;align-items:center;gap:10px;">
               <input type="checkbox" id="isActive" checked style="width:auto;" />
@@ -99,7 +114,24 @@
         </div>
 
         <div class="admin-panel">
-          <h2>All Products</h2>
+          <h2>Categories</h2>
+          <div class="admin-error" id="categoryError"></div>
+          <form id="categoryForm" style="display:flex;gap:10px;margin-bottom:16px;">
+            <input type="text" id="newCategoryName" placeholder="New category name…" style="flex:1;" required />
+            <button type="submit" class="btn btn-primary" style="padding:10px 18px;white-space:nowrap;">Add</button>
+          </form>
+          <div id="categoryList" style="display:flex;flex-direction:column;gap:8px;"></div>
+        </div>
+        </div>
+
+        <div class="admin-panel">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px;flex-wrap:wrap;">
+            <h2 style="margin-bottom:0;">All Products</h2>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <input type="search" id="productSearch" class="admin-search-input" placeholder="Search name or category…" style="min-width:200px;" />
+              <button type="button" class="admin-export-btn" id="exportBtn" style="margin-left:0;"><svg><use href="#ico-download"/></svg>Export CSV</button>
+            </div>
+          </div>
           <div class="admin-table-wrap">
             <table class="admin-table">
               <thead>
@@ -119,10 +151,26 @@
           </div>
         </div>
       </div>
+
+      <div class="admin-panel" style="margin-top:24px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px;flex-wrap:wrap;">
+          <h2 style="margin-bottom:0;">Stock Notification Requests</h2>
+        </div>
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">Customers who asked to be emailed when an out-of-stock product is back — work these manually for now.</p>
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead><tr><th>Requested</th><th>Product</th><th>Email</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody id="notifyBody"></tbody>
+          </table>
+          <div class="admin-empty" id="notifyEmpty" style="display:none;">No stock notification requests yet.</div>
+        </div>
+      </div>
     </div>
   </div>
 
   <script src="/assets/supabase-config.js"></script>
+  <script src="/assets/admin.js"></script>
+<script>initGlobalSearch(supabaseClient);</script>
   <script>
     let editingId = null;
 
@@ -133,13 +181,17 @@
       // this account is actually flagged admin before showing anything here;
       // RLS blocks the real data either way, but a non-admin shouldn't even
       // see the dashboard shell.
-      const { data: profile } = await supabaseClient.from('profiles').select('is_admin').eq('id', session.user.id).single();
+      const { data: profile } = await supabaseClient.from('profiles').select('is_admin, role').eq('id', session.user.id).maybeSingle();
       if (!profile || !profile.is_admin) {
         await supabaseClient.auth.signOut();
         window.location.href = '/admin/login/';
         return;
       }
       document.getElementById('userEmail').textContent = session.user.email;
+      if (profile.role !== 'owner') {
+        const financeLink = document.querySelector('.admin-nav a[href="/admin/finance/"]');
+        if (financeLink) financeLink.remove();
+      }
     })();
 
     document.getElementById('signOutBtn').addEventListener('click', async () => {
@@ -149,32 +201,122 @@
 
     function ugx(n) { return 'UGX ' + Number(n).toLocaleString('en-UG'); }
 
+    let ALL_PRODUCTS = [];
+    let ALL_CATEGORIES = [];
+
+    /* ══════════════════ CATEGORIES ══════════════════ */
+    async function loadCategories() {
+      const { data, error } = await supabaseClient.from('categories').select('*').order('sort_order').order('name');
+      if (error) { showToast('Could not load categories: ' + error.message, 'error'); return; }
+      ALL_CATEGORIES = data || [];
+      renderCategorySelect();
+      renderCategoryList();
+    }
+
+    function renderCategorySelect() {
+      const sel = document.getElementById('category');
+      const current = sel.value;
+      const names = ALL_CATEGORIES.map(c => c.name);
+      // Products created before a category was renamed/removed can still carry
+      // a free-text value that's no longer in the table — keep it selectable
+      // rather than silently swapping their category out from under them.
+      const extra = [...new Set(ALL_PRODUCTS.map(p => p.category).filter(c => c && !names.includes(c)))];
+      sel.innerHTML = [...names, ...extra].map(n => `<option value="${n}">${n}</option>`).join('');
+      if (current && [...names, ...extra].includes(current)) sel.value = current;
+    }
+
+    function renderCategoryList() {
+      const wrap = document.getElementById('categoryList');
+      if (!ALL_CATEGORIES.length) { wrap.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">No categories yet — add one above.</p>'; return; }
+      wrap.innerHTML = ALL_CATEGORIES.map(c => {
+        const count = ALL_PRODUCTS.filter(p => p.category === c.name).length;
+        return `
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;border:1px solid var(--line);border-radius:10px;">
+          <span style="font-size:13.5px;font-weight:600;">${c.name} <span style="color:var(--text-muted);font-weight:500;">(${count})</span></span>
+          <button type="button" data-del-cat="${c.id}" class="admin-row-actions" style="color:var(--danger,#c0392b);background:none;border:none;cursor:pointer;font-size:12.5px;">Delete</button>
+        </div>`;
+      }).join('');
+      wrap.querySelectorAll('[data-del-cat]').forEach(btn => btn.addEventListener('click', () => deleteCategory(btn.dataset.delCat)));
+    }
+
+    document.getElementById('categoryForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const errorBox = document.getElementById('categoryError');
+      errorBox.style.display = 'none';
+      const input = document.getElementById('newCategoryName');
+      const name = input.value.trim();
+      if (!name) return;
+      const { error } = await supabaseClient.from('categories').insert({ name, sort_order: ALL_CATEGORIES.length });
+      if (error) {
+        errorBox.textContent = error.code === '23505' ? 'That category already exists.' : error.message;
+        errorBox.style.display = 'block';
+        return;
+      }
+      input.value = '';
+      showToast('Category added.');
+      loadCategories();
+    });
+
+    async function deleteCategory(id) {
+      const cat = ALL_CATEGORIES.find(c => String(c.id) === String(id));
+      const inUse = cat ? ALL_PRODUCTS.filter(p => p.category === cat.name).length : 0;
+      const msg = inUse
+        ? `${inUse} product${inUse === 1 ? '' : 's'} currently use "${cat.name}". They'll keep that category as free text, but it won't appear in this dropdown for new products anymore. Delete anyway?`
+        : `Delete category "${cat ? cat.name : ''}"?`;
+      const ok = await confirmDialog(msg);
+      if (!ok) return;
+      const { error } = await supabaseClient.from('categories').delete().eq('id', id);
+      if (error) { showToast('Could not delete: ' + error.message, 'error'); return; }
+      showToast('Category deleted.');
+      loadCategories();
+    }
+
     async function loadProducts() {
       const { data, error } = await supabaseClient
         .from('products')
         .select('*')
         .order('created_at', { ascending: false });
 
-      const body = document.getElementById('productsBody');
-      const empty = document.getElementById('emptyState');
-      body.innerHTML = '';
-
-      if (error) { console.error(error); return; }
-      if (!data.length) { empty.style.display = 'block'; return; }
-      empty.style.display = 'none';
+      if (error) {
+        console.error(error);
+        showToast('Could not load products: ' + error.message, 'error');
+        const empty = document.getElementById('emptyState');
+        empty.textContent = 'Could not load products: ' + error.message;
+        empty.style.display = 'block';
+        return;
+      }
 
       // Normalize id to a string so it matches the string always read back
       // from the button's data-id attribute, regardless of whether the
       // products table uses uuid or integer ids.
-      data.forEach(p => { p.id = String(p.id); });
+      (data || []).forEach(p => { p.id = String(p.id); });
+      ALL_PRODUCTS = data || [];
+      renderProducts();
+      renderCategorySelect();
+      renderCategoryList();
+    }
 
-      data.forEach((p) => {
+    function renderProducts() {
+      const body = document.getElementById('productsBody');
+      const empty = document.getElementById('emptyState');
+      const q = document.getElementById('productSearch').value.trim().toLowerCase();
+      body.innerHTML = '';
+
+      const list = ALL_PRODUCTS.filter(p =>
+        !q || [p.name, p.category].some(v => (v || '').toLowerCase().includes(q))
+      );
+
+      if (!list.length) { empty.style.display = 'block'; return; }
+      empty.style.display = 'none';
+
+      list.forEach((p) => {
+        const lowStock = p.stock <= 3;
         const tr = document.createElement('tr');
         tr.innerHTML = `
         <td>${p.image_url ? `<img class="admin-thumb" src="${p.image_url}" alt="">` : `<div class="admin-thumb"></div>`}</td>
         <td>${p.name}</td>
-        <td>${ugx(p.price)}</td>
-        <td>${p.stock}</td>
+        <td>${p.sale_price != null ? `<span style="text-decoration:line-through;color:var(--text-muted);">${ugx(p.price)}</span> ${ugx(p.sale_price)}` : ugx(p.price)}</td>
+        <td class="${lowStock ? 'admin-stock-warn' : ''}">${p.stock}${lowStock ? ' ⚠' : ''}</td>
         <td><span class="admin-status-pill ${p.is_active ? 'on' : 'off'}">${p.is_active ? 'Visible' : 'Hidden'}</span></td>
         <td>
           <div class="admin-row-actions">
@@ -186,11 +328,36 @@
       });
 
       body.querySelectorAll('button[data-action="edit"]').forEach(btn => {
-        btn.addEventListener('click', () => startEdit(btn.dataset.id, data));
+        btn.addEventListener('click', () => startEdit(btn.dataset.id, ALL_PRODUCTS));
       });
       body.querySelectorAll('button[data-action="delete"]').forEach(btn => {
         btn.addEventListener('click', () => deleteProduct(btn.dataset.id));
       });
+    }
+
+    document.getElementById('productSearch').addEventListener('input', renderProducts);
+
+    // Gallery state: `galleryUrls` holds already-uploaded image URLs kept for
+    // this edit (removable), `newGalleryFiles` holds freshly-picked files not
+    // uploaded yet — both get merged into `image_urls` on save.
+    let galleryUrls = [];
+    let newGalleryFiles = [];
+
+    function renderGalleryPreview() {
+      const wrap = document.getElementById('galleryPreview');
+      const existing = galleryUrls.map((url, i) => `
+        <div class="admin-gallery-thumb"><img src="${url}" alt=""><button type="button" data-remove-existing="${i}">×</button></div>`);
+      const pending = newGalleryFiles.map((file, i) => `
+        <div class="admin-gallery-thumb pending"><img src="${URL.createObjectURL(file)}" alt=""><button type="button" data-remove-pending="${i}">×</button></div>`);
+      wrap.innerHTML = existing.join('') + pending.join('');
+      wrap.querySelectorAll('[data-remove-existing]').forEach(btn => btn.addEventListener('click', () => {
+        galleryUrls.splice(Number(btn.dataset.removeExisting), 1);
+        renderGalleryPreview();
+      }));
+      wrap.querySelectorAll('[data-remove-pending]').forEach(btn => btn.addEventListener('click', () => {
+        newGalleryFiles.splice(Number(btn.dataset.removePending), 1);
+        renderGalleryPreview();
+      }));
     }
 
     function startEdit(id, list) {
@@ -203,12 +370,17 @@
       document.getElementById('description').value = p.description;
       document.getElementById('price').value = p.price;
       document.getElementById('stock').value = p.stock;
+      document.getElementById('salePrice').value = p.sale_price != null ? p.sale_price : '';
+      document.getElementById('specs').value = p.specs || '';
       document.getElementById('category').value = p.category;
       document.getElementById('isActive').checked = p.is_active;
       document.getElementById('submitBtn').textContent = 'Save Changes';
       document.getElementById('cancelEditBtn').style.display = 'inline-flex';
       const preview = document.getElementById('imagePreview');
       preview.innerHTML = p.image_url ? `<img src="${p.image_url}" alt="">` : 'No image selected';
+      galleryUrls = Array.isArray(p.image_urls) ? p.image_urls.slice() : [];
+      newGalleryFiles = [];
+      renderGalleryPreview();
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
@@ -223,6 +395,9 @@
       document.getElementById('cancelEditBtn').style.display = 'none';
       document.getElementById('imagePreview').innerHTML = 'No image selected';
       document.getElementById('formError').style.display = 'none';
+      galleryUrls = [];
+      newGalleryFiles = [];
+      renderGalleryPreview();
     }
 
     document.getElementById('imageFile').addEventListener('change', (e) => {
@@ -235,11 +410,19 @@
       reader.readAsDataURL(file);
     });
 
+    document.getElementById('galleryFiles').addEventListener('change', (e) => {
+      newGalleryFiles = newGalleryFiles.concat(Array.from(e.target.files));
+      e.target.value = ''; // allow picking the same file again after a remove
+      renderGalleryPreview();
+    });
+
     async function deleteProduct(id) {
-      if (!confirm('Delete this product? This cannot be undone.')) return;
+      const ok = await confirmDialog('Delete this product? This cannot be undone.');
+      if (!ok) return;
       const { data, error } = await supabaseClient.from('products').delete().eq('id', id).select();
-      if (error) { alert('Could not delete: ' + error.message); return; }
-      if (!data || !data.length) { alert('Nothing was deleted — your account may not have admin permissions. Check the is_admin flag in Supabase (see SETUP.md).'); return; }
+      if (error) { showToast('Could not delete: ' + error.message, 'error'); return; }
+      if (!data || !data.length) { showToast('Nothing was deleted — check your admin permissions.', 'error'); return; }
+      showToast('Product deleted.');
       loadProducts();
     }
 
@@ -266,13 +449,34 @@
           imageUrl = pub.publicUrl;
         }
 
+        const uploadedGalleryUrls = [];
+        for (const galleryFile of newGalleryFiles) {
+          const ext = galleryFile.name.split('.').pop();
+          const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+          const { error: uploadError } = await supabaseClient.storage.from('product-images').upload(path, galleryFile);
+          if (uploadError) throw uploadError;
+          const { data: pub } = supabaseClient.storage.from('product-images').getPublicUrl(path);
+          uploadedGalleryUrls.push(pub.publicUrl);
+        }
+        const imageUrls = galleryUrls.concat(uploadedGalleryUrls);
+
+        const priceVal = Number(document.getElementById('price').value);
+        const salePriceRaw = document.getElementById('salePrice').value;
+        const salePriceVal = salePriceRaw ? Number(salePriceRaw) : null;
+        if (salePriceVal != null && salePriceVal >= priceVal) {
+          throw new Error('Sale price must be lower than the regular price.');
+        }
+
         const payload = {
           name: document.getElementById('name').value.trim(),
           description: document.getElementById('description').value.trim(),
-          price: Number(document.getElementById('price').value),
+          price: priceVal,
+          sale_price: salePriceVal,
+          specs: document.getElementById('specs').value.trim() || null,
           stock: Number(document.getElementById('stock').value),
           category: document.getElementById('category').value,
           is_active: document.getElementById('isActive').checked,
+          image_urls: imageUrls.length ? imageUrls : null,
         };
         if (imageUrl !== undefined && imageUrl !== null) payload.image_url = imageUrl;
 
@@ -286,6 +490,7 @@
           if (error) throw error;
         }
 
+        showToast(editingId ? 'Product updated.' : 'Product added.');
         resetForm();
         loadProducts();
       } catch (err) {
@@ -297,7 +502,71 @@
       }
     });
 
-    loadProducts();
+    document.getElementById('exportBtn').addEventListener('click', () => {
+      const q = document.getElementById('productSearch').value.trim().toLowerCase();
+      const rows = ALL_PRODUCTS.filter(p => !q || [p.name, p.category].some(v => (v || '').toLowerCase().includes(q)));
+      if (!rows.length) { showToast('Nothing to export.', 'error'); return; }
+      exportCsv('products.csv', rows, [
+        { label: 'Name', value: p => p.name },
+        { label: 'Category', value: p => p.category },
+        { label: 'Price (UGX)', value: p => p.price },
+        { label: 'Stock', value: p => p.stock },
+        { label: 'Status', value: p => p.is_active ? 'Visible' : 'Hidden' },
+        { label: 'Description', value: p => p.description || '' },
+      ]);
+      showToast(`Exported ${rows.length} product${rows.length === 1 ? '' : 's'}.`);
+    });
+
+    loadCategories();
+    loadProducts().then(() => wireDeepLinkSearch('productSearch'));
+    loadStockNotifications();
+
+    async function loadStockNotifications() {
+      const body = document.getElementById('notifyBody');
+      const empty = document.getElementById('notifyEmpty');
+      const { data, error } = await supabaseClient
+        .from('stock_notifications')
+        .select('*, products(name, stock)')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        empty.textContent = 'Could not load requests: ' + error.message;
+        empty.style.display = 'block';
+        return;
+      }
+      if (!data || !data.length) { empty.style.display = 'block'; body.innerHTML = ''; return; }
+      empty.style.display = 'none';
+
+      body.innerHTML = data.map(n => {
+        const backInStock = n.products && n.products.stock > 0;
+        return `
+        <tr>
+          <td>${new Date(n.created_at).toLocaleDateString('en-UG', { dateStyle: 'medium' })}</td>
+          <td>${n.products ? n.products.name : 'Deleted product'}${backInStock ? ' <span class="admin-status-pill on">Back in stock</span>' : ''}</td>
+          <td><a href="mailto:${n.email}">${n.email}</a></td>
+          <td><span class="admin-status-pill ${n.notified ? 'on' : 'off'}">${n.notified ? 'Notified' : 'Pending'}</span></td>
+          <td>
+            <div class="admin-row-actions">
+              ${!n.notified ? `<button data-mark-notified="${n.id}">Mark notified</button>` : ''}
+              <button data-delete-notify="${n.id}" class="danger">Delete</button>
+            </div>
+          </td>
+        </tr>`;
+      }).join('');
+
+      body.querySelectorAll('[data-mark-notified]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          await supabaseClient.from('stock_notifications').update({ notified: true }).eq('id', btn.dataset.markNotified);
+          loadStockNotifications();
+        });
+      });
+      body.querySelectorAll('[data-delete-notify]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          await supabaseClient.from('stock_notifications').delete().eq('id', btn.dataset.deleteNotify);
+          loadStockNotifications();
+        });
+      });
+    }
   </script>
   <script src="/assets/script.js" defer></script>
 </body>

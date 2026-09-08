@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Manage Coupons — Admin — ND Electronic Technologies Ltd</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Poppins:wght@500;600;700&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="/assets/styles.css" />
+  <link rel="stylesheet" href="/assets/admin.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+
+<body>
+
+  <div class="admin-shell">
+    <div class="admin-sidebar">
+      <a href="/" class="brand" id="navBrand"></a>
+      <div class="admin-sidebar-tag">Admin Panel</div>
+    <div class="admin-global-search" id="globalSearchBox">
+      <svg><use href="#ico-search"/></svg>
+      <input type="text" id="globalSearchInput" placeholder="Search everything…" autocomplete="off" />
+      <div id="globalSearchResults"></div>
+    </div>
+      <div class="admin-nav">
+        <a href="/admin/"><svg><use href="#ico-dashboard"/></svg><span>Dashboard</span></a>
+        <a href="/admin/products/"><svg><use href="#ico-box"/></svg><span>Products</span></a>
+        <a href="/admin/coupons/" class="active"><svg><use href="#ico-tag"/></svg><span>Coupons</span></a>
+        <a href="/admin/orders/"><svg><use href="#ico-cash"/></svg><span>Orders</span></a>
+        <a href="/admin/leads/"><svg><use href="#ico-mail"/></svg><span>Leads</span></a>
+        <a href="/admin/reviews/"><svg><use href="#ico-star"/></svg><span>Reviews</span></a>
+        <a href="/admin/finance/"><svg><use href="#ico-chart"/></svg><span>Finance</span></a>
+        <a href="/admin/customers/"><svg><use href="#ico-user"/></svg><span>Customers</span></a>
+      </div>
+      <div class="admin-sidebar-foot">
+        <div class="admin-sidebar-user" id="userEmail"></div>
+        <button id="signOutBtn" class="btn btn-outline-dark" style="padding:8px 16px;font-size:12.5px;">Sign Out</button>
+      </div>
+    </div>
+    <div class="admin-main">
+      <div class="admin-head">
+        <div>
+          <h1>Coupons</h1>
+          <p>Create discount codes customers can apply at checkout. Percent or fixed-amount, with optional expiry and usage limit.</p>
+        </div>
+      </div>
+
+      <div class="admin-layout">
+        <div class="admin-panel">
+          <h2 id="formTitle">New Coupon</h2>
+          <div class="admin-error" id="formError"></div>
+          <form id="couponForm">
+            <input type="hidden" id="couponId" />
+            <div class="form-group">
+              <label>Code *</label>
+              <input type="text" id="code" required placeholder="e.g. WELCOME10" style="text-transform:uppercase;" />
+            </div>
+            <div class="admin-form-row">
+              <div class="form-group">
+                <label>Discount Type *</label>
+                <select id="discountType" required>
+                  <option value="percent">Percent off</option>
+                  <option value="fixed">Fixed amount (UGX)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label id="discountValueLabel">Percent Off *</label>
+                <input type="number" id="discountValue" min="0" step="1" required placeholder="e.g. 10" />
+              </div>
+            </div>
+            <div class="admin-form-row">
+              <div class="form-group">
+                <label>Expires On</label>
+                <input type="date" id="expiresAt" />
+              </div>
+              <div class="form-group">
+                <label>Usage Limit</label>
+                <input type="number" id="usageLimit" min="1" step="1" placeholder="Unlimited" />
+              </div>
+            </div>
+            <div class="form-group" style="display:flex;align-items:center;gap:10px;">
+              <input type="checkbox" id="isActive" checked style="width:auto;" />
+              <label
+                style="margin:0;text-transform:none;font-family:var(--font-body);font-size:13.5px;font-weight:500;color:var(--ink);">Active
+                (customers can use it)</label>
+            </div>
+            <div class="admin-form-actions">
+              <button type="submit" class="btn btn-primary" id="submitBtn">Create Coupon</button>
+              <button type="button" class="btn btn-outline-navy" id="cancelEditBtn" style="display:none;">Cancel</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="admin-panel">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px;flex-wrap:wrap;">
+            <h2 style="margin-bottom:0;">All Coupons</h2>
+            <input type="search" id="couponSearch" class="admin-search-input" placeholder="Search code…" style="min-width:200px;" />
+          </div>
+          <div class="admin-table-wrap">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>Code</th>
+                  <th>Discount</th>
+                  <th>Expires</th>
+                  <th>Used</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="couponsBody"></tbody>
+            </table>
+            <div class="admin-empty" id="emptyState" style="display:none;">No coupons yet — create your first one on the
+              left.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/assets/supabase-config.js"></script>
+  <script src="/assets/admin.js"></script>
+<script>initGlobalSearch(supabaseClient);</script>
+  <script>
+    let editingId = null;
+
+    (async function guard() {
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (!session) { window.location.href = '/admin/login/'; return; }
+      const { data: profile } = await supabaseClient.from('profiles').select('is_admin, role').eq('id', session.user.id).maybeSingle();
+      if (!profile || !profile.is_admin) {
+        await supabaseClient.auth.signOut();
+        window.location.href = '/admin/login/';
+        return;
+      }
+      document.getElementById('userEmail').textContent = session.user.email;
+    })();
+
+    document.getElementById('signOutBtn').addEventListener('click', async () => {
+      await supabaseClient.auth.signOut();
+      window.location.href = '/admin/login/';
+    });
+
+    function ugx(n) { return 'UGX ' + Number(n).toLocaleString('en-UG'); }
+    function fmtDiscount(c) { return c.discount_type === 'percent' ? `${c.discount_value}% off` : `${ugx(c.discount_value)} off`; }
+
+    document.getElementById('discountType').addEventListener('change', (e) => {
+      document.getElementById('discountValueLabel').textContent = e.target.value === 'percent' ? 'Percent Off *' : 'Amount Off (UGX) *';
+    });
+
+    let ALL_COUPONS = [];
+
+    async function loadCoupons() {
+      const { data, error } = await supabaseClient.from('coupons').select('*').order('created_at', { ascending: false });
+      if (error) {
+        showToast('Could not load coupons: ' + error.message, 'error');
+        const empty = document.getElementById('emptyState');
+        empty.textContent = 'Could not load coupons: ' + error.message;
+        empty.style.display = 'block';
+        return;
+      }
+      ALL_COUPONS = data || [];
+      renderCoupons();
+    }
+
+    function renderCoupons() {
+      const body = document.getElementById('couponsBody');
+      const empty = document.getElementById('emptyState');
+      const q = document.getElementById('couponSearch').value.trim().toLowerCase();
+      body.innerHTML = '';
+
+      const list = ALL_COUPONS.filter(c => !q || c.code.toLowerCase().includes(q));
+      if (!list.length) { empty.style.display = 'block'; return; }
+      empty.style.display = 'none';
+
+      const today = new Date().toISOString().slice(0, 10);
+      list.forEach((c) => {
+        const expired = c.expires_at && c.expires_at.slice(0, 10) < today;
+        const usedUp = c.usage_limit != null && c.times_used >= c.usage_limit;
+        const live = c.is_active && !expired && !usedUp;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+        <td style="font-family:var(--font-mono);font-weight:700;letter-spacing:.5px;">${c.code}</td>
+        <td>${fmtDiscount(c)}</td>
+        <td>${c.expires_at ? new Date(c.expires_at).toLocaleDateString('en-UG', { year: 'numeric', month: 'short', day: 'numeric' }) : '—'}</td>
+        <td>${c.times_used}${c.usage_limit != null ? ' / ' + c.usage_limit : ''}</td>
+        <td><span class="admin-status-pill ${live ? 'on' : 'off'}">${live ? 'Active' : (expired ? 'Expired' : (usedUp ? 'Used up' : 'Inactive'))}</span></td>
+        <td>
+          <div class="admin-row-actions">
+            <button data-action="edit" data-id="${c.id}">Edit</button>
+            <button data-action="delete" data-id="${c.id}" class="danger">Delete</button>
+          </div>
+        </td>`;
+        body.appendChild(tr);
+      });
+
+      body.querySelectorAll('button[data-action="edit"]').forEach(btn => btn.addEventListener('click', () => startEdit(btn.dataset.id)));
+      body.querySelectorAll('button[data-action="delete"]').forEach(btn => btn.addEventListener('click', () => deleteCoupon(btn.dataset.id)));
+    }
+
+    document.getElementById('couponSearch').addEventListener('input', renderCoupons);
+
+    function startEdit(id) {
+      const c = ALL_COUPONS.find(x => String(x.id) === String(id));
+      if (!c) return;
+      editingId = c.id;
+      document.getElementById('formTitle').textContent = 'Edit Coupon';
+      document.getElementById('couponId').value = c.id;
+      document.getElementById('code').value = c.code;
+      document.getElementById('discountType').value = c.discount_type;
+      document.getElementById('discountType').dispatchEvent(new Event('change'));
+      document.getElementById('discountValue').value = c.discount_value;
+      document.getElementById('expiresAt').value = c.expires_at ? c.expires_at.slice(0, 10) : '';
+      document.getElementById('usageLimit').value = c.usage_limit != null ? c.usage_limit : '';
+      document.getElementById('isActive').checked = c.is_active;
+      document.getElementById('submitBtn').textContent = 'Save Changes';
+      document.getElementById('cancelEditBtn').style.display = 'inline-flex';
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    document.getElementById('cancelEditBtn').addEventListener('click', resetForm);
+
+    function resetForm() {
+      editingId = null;
+      document.getElementById('couponForm').reset();
+      document.getElementById('couponId').value = '';
+      document.getElementById('discountType').dispatchEvent(new Event('change'));
+      document.getElementById('formTitle').textContent = 'New Coupon';
+      document.getElementById('submitBtn').textContent = 'Create Coupon';
+      document.getElementById('cancelEditBtn').style.display = 'none';
+      document.getElementById('formError').style.display = 'none';
+    }
+
+    async function deleteCoupon(id) {
+      const ok = await confirmDialog('Delete this coupon? This cannot be undone.');
+      if (!ok) return;
+      const { data, error } = await supabaseClient.from('coupons').delete().eq('id', id).select();
+      if (error) { showToast('Could not delete: ' + error.message, 'error'); return; }
+      if (!data || !data.length) { showToast('Nothing was deleted — only the owner account can delete coupons.', 'error'); return; }
+      showToast('Coupon deleted.');
+      loadCoupons();
+    }
+
+    document.getElementById('couponForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const errorBox = document.getElementById('formError');
+      errorBox.style.display = 'none';
+      const submitBtn = document.getElementById('submitBtn');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Saving...';
+
+      try {
+        const payload = {
+          code: document.getElementById('code').value.trim().toUpperCase(),
+          discount_type: document.getElementById('discountType').value,
+          discount_value: Number(document.getElementById('discountValue').value),
+          expires_at: document.getElementById('expiresAt').value || null,
+          usage_limit: document.getElementById('usageLimit').value ? Number(document.getElementById('usageLimit').value) : null,
+          is_active: document.getElementById('isActive').checked,
+        };
+        if (!payload.code) throw new Error('Enter a code.');
+        if (payload.discount_type === 'percent' && payload.discount_value > 100) throw new Error('Percent off cannot exceed 100.');
+
+        if (editingId) {
+          const { data, error } = await supabaseClient.from('coupons').update(payload).eq('id', editingId).select();
+          if (error) throw error;
+          if (!data || !data.length) throw new Error('Nothing was saved — check your admin permissions.');
+        } else {
+          const { error } = await supabaseClient.from('coupons').insert(payload);
+          if (error) throw error;
+        }
+
+        showToast(editingId ? 'Coupon updated.' : 'Coupon created.');
+        resetForm();
+        loadCoupons();
+      } catch (err) {
+        errorBox.textContent = err.message || 'Something went wrong.';
+        errorBox.style.display = 'block';
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = editingId ? 'Save Changes' : 'Create Coupon';
+      }
+    });
+
+    loadCoupons();
+  </script>
+  <script src="/assets/script.js" defer></script>
+</body>
+
+</html>

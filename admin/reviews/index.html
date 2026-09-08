@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Reviews — Admin — ND Electronic Technologies Ltd</title>
+<meta name="robots" content="noindex, nofollow" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Poppins:wght@500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/assets/styles.css" />
+<link rel="stylesheet" href="/assets/admin.css" />
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+<div class="admin-shell">
+  <div class="admin-sidebar">
+    <a href="/" class="brand" id="navBrand"></a>
+    <div class="admin-sidebar-tag">Admin Panel</div>
+    <div class="admin-global-search" id="globalSearchBox">
+      <svg><use href="#ico-search"/></svg>
+      <input type="text" id="globalSearchInput" placeholder="Search everything…" autocomplete="off" />
+      <div id="globalSearchResults"></div>
+    </div>
+    <div class="admin-nav">
+      <a href="/admin/"><svg><use href="#ico-dashboard"/></svg><span>Dashboard</span></a>
+      <a href="/admin/products/"><svg><use href="#ico-box"/></svg><span>Products</span></a>
+      <a href="/admin/coupons/"><svg><use href="#ico-tag"/></svg><span>Coupons</span></a>
+      <a href="/admin/orders/"><svg><use href="#ico-cash"/></svg><span>Orders</span></a>
+      <a href="/admin/leads/"><svg><use href="#ico-mail"/></svg><span>Leads</span></a>
+      <a href="/admin/reviews/" class="active"><svg><use href="#ico-star"/></svg><span>Reviews</span></a>
+      <a href="/admin/finance/"><svg><use href="#ico-chart"/></svg><span>Finance</span></a>
+      <a href="/admin/customers/"><svg><use href="#ico-user"/></svg><span>Customers</span></a>
+    </div>
+    <div class="admin-sidebar-foot">
+      <div class="admin-sidebar-user" id="userEmail"></div>
+      <button id="signOutBtn" class="btn btn-outline-dark" style="padding:8px 16px;font-size:12.5px;">Sign Out</button>
+    </div>
+  </div>
+  <div class="admin-main">
+    <div class="admin-head">
+      <div>
+        <h1>Reviews</h1>
+        <p>Ratings and reviews customers have left on products.</p>
+      </div>
+      <input type="search" id="reviewSearch" class="admin-search-input" placeholder="Search product or reviewer…" />
+    </div>
+
+    <div class="admin-filter-tabs" id="ratingTabs">
+      <button class="admin-filter-tab active" data-rating="">All</button>
+      <button class="admin-filter-tab" data-rating="5">★★★★★</button>
+      <button class="admin-filter-tab" data-rating="4">★★★★</button>
+      <button class="admin-filter-tab" data-rating="3">★★★</button>
+      <button class="admin-filter-tab" data-rating="2">★★</button>
+      <button class="admin-filter-tab" data-rating="1">★</button>
+    </div>
+
+    <div class="admin-toolbar">
+      <span class="admin-toolbar-label">From</span>
+      <input type="date" id="dateFrom" class="admin-date-input" />
+      <span class="admin-toolbar-label">To</span>
+      <input type="date" id="dateTo" class="admin-date-input" />
+      <button type="button" class="admin-export-btn" id="exportBtn"><svg><use href="#ico-download"/></svg>Export CSV</button>
+    </div>
+
+    <div class="admin-panel">
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr><th></th><th>Date</th><th>Product</th><th>Reviewer</th><th>Rating</th><th>Comment</th><th>Photos</th></tr>
+          </thead>
+          <tbody id="reviewsBody"></tbody>
+        </table>
+        <div class="admin-empty" id="emptyState" style="display:none;">No reviews yet.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/assets/supabase-config.js"></script>
+<script src="/assets/admin.js"></script>
+<script>initGlobalSearch(supabaseClient);</script>
+<script>
+  (async function guard() {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) { window.location.href = '/admin/login/'; return; }
+    const { data: profile } = await supabaseClient.from('profiles').select('is_admin, role').eq('id', session.user.id).maybeSingle();
+    if (!profile || !profile.is_admin) {
+      await supabaseClient.auth.signOut();
+      window.location.href = '/admin/login/';
+      return;
+    }
+    document.getElementById('userEmail').textContent = session.user.email;
+    if (profile.role !== 'owner') {
+      const financeLink = document.querySelector('.admin-nav a[href="/admin/finance/"]');
+      if (financeLink) financeLink.remove();
+    }
+  })();
+
+  document.getElementById('signOutBtn').addEventListener('click', async () => {
+    await supabaseClient.auth.signOut();
+    window.location.href = '/admin/login/';
+  });
+
+  function fmtDate(iso) { return new Date(iso).toLocaleString('en-UG', { dateStyle: 'medium', timeStyle: 'short' }); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+  function stars(n) { return '★'.repeat(n) + '☆'.repeat(5 - n); }
+
+  let REVIEWS = [];
+  let activeRating = '';
+  let expandedId = null;
+  let replyFormOpenId = null;
+
+  async function loadReviews() {
+    // "public read reviews" already permits this — admin or not, reviews
+    // are readable by anyone, same as product listings.
+    const { data, error } = await supabaseClient
+      .from('reviews')
+      .select('*, products(name, image_url)')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error(error);
+      showToast('Could not load reviews: ' + error.message, 'error');
+      const empty = document.getElementById('emptyState');
+      empty.textContent = 'Could not load reviews: ' + error.message;
+      empty.style.display = 'block';
+      return;
+    }
+    REVIEWS = data || [];
+    render();
+  }
+
+  function visibleReviews() {
+    const q = document.getElementById('reviewSearch').value.trim().toLowerCase();
+    const from = document.getElementById('dateFrom').value;
+    const to = document.getElementById('dateTo').value;
+    return REVIEWS.filter(r => {
+      if (activeRating && String(r.rating) !== activeRating) return false;
+      if (from && r.created_at < from) return false;
+      if (to && r.created_at.slice(0, 10) > to) return false;
+      if (!q) return true;
+      const productName = (r.products && r.products.name) || '';
+      return [productName, r.reviewer_name].some(v => (v || '').toLowerCase().includes(q));
+    });
+  }
+
+  function render() {
+    const body = document.getElementById('reviewsBody');
+    const empty = document.getElementById('emptyState');
+    body.innerHTML = '';
+
+    const rows = visibleReviews();
+    if (!rows.length) { empty.style.display = 'block'; return; }
+    empty.style.display = 'none';
+
+    rows.forEach((r) => {
+      const productName = (r.products && r.products.name) || 'Deleted product';
+      const photoCount = (r.image_urls || []).length;
+      const tr = document.createElement('tr');
+      tr.className = 'admin-row-clickable' + (r.id === expandedId ? ' expanded' : '');
+      tr.dataset.id = r.id;
+      tr.innerHTML = `
+        <td><svg class="admin-expand-chevron"><use href="#ico-chevron"/></svg></td>
+        <td>${fmtDate(r.created_at)}</td>
+        <td>${esc(productName)}</td>
+        <td>${esc(r.reviewer_name)}</td>
+        <td style="color:var(--amber-dark);letter-spacing:1px;">${stars(r.rating)}</td>
+        <td class="admin-order-notes" title="${esc(r.comment)}">${esc(r.comment) || '—'}</td>
+        <td>${photoCount ? photoCount + ' photo' + (photoCount === 1 ? '' : 's') : '—'}</td>`;
+      body.appendChild(tr);
+
+      if (r.id === expandedId) body.appendChild(detailRow(r, productName));
+    });
+
+    body.querySelectorAll('tr.admin-row-clickable').forEach(row => {
+      row.addEventListener('click', () => {
+        expandedId = expandedId === row.dataset.id ? null : row.dataset.id;
+        render();
+      });
+    });
+
+    body.querySelectorAll('[data-open-reply]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        replyFormOpenId = btn.dataset.openReply;
+        render();
+      });
+    });
+    body.querySelectorAll('[data-cancel-reply]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        replyFormOpenId = null;
+        render();
+      });
+    });
+    body.querySelectorAll('[data-save-reply]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        saveReply(btn.dataset.saveReply);
+      });
+    });
+  }
+
+  function detailRow(r, productName) {
+    const tr = document.createElement('tr');
+    tr.className = 'admin-detail-row';
+    const photosHtml = (r.image_urls || []).map(u =>
+      `<a href="${esc(u)}" target="_blank" rel="noopener"><img src="${esc(u)}" alt="" style="width:64px;height:64px;object-fit:cover;border-radius:var(--radius);"></a>`
+    ).join('');
+
+    tr.innerHTML = `
+      <td colspan="7">
+        <div class="admin-detail-inner">
+          <div class="admin-detail-grid">
+            <div class="admin-detail-field"><label>Product</label><div>${esc(productName)}</div></div>
+            <div class="admin-detail-field"><label>Reviewer</label><div>${esc(r.reviewer_name)}</div></div>
+            <div class="admin-detail-field"><label>Rating</label><div style="color:var(--amber-dark);">${stars(r.rating)}</div></div>
+          </div>
+          <div class="admin-detail-field"><label>Full Comment</label><div>${esc(r.comment) || 'No comment left.'}</div></div>
+          ${photosHtml ? `<div class="admin-detail-field" style="margin-top:14px;"><label>Photos</label><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;">${photosHtml}</div></div>` : ''}
+          ${replySectionHtml(r)}
+        </div>
+      </td>`;
+    return tr;
+  }
+
+  function replySectionHtml(r) {
+    const formOpen = replyFormOpenId === r.id;
+    if (formOpen) {
+      return `
+        <div class="admin-detail-field" style="margin-top:16px;">
+          <label>Reply as ND Electronic Technologies</label>
+          <textarea id="replyText-${r.id}" rows="3" style="width:100%;font-family:var(--font-body);font-size:13.5px;padding:9px 12px;border:1.5px solid var(--line);border-radius:var(--radius);margin-top:6px;">${esc(r.admin_reply || '')}</textarea>
+          <div style="display:flex;gap:10px;margin-top:10px;">
+            <button type="button" class="btn btn-primary" style="padding:9px 16px;font-size:12.5px;" data-save-reply="${r.id}">Save Reply</button>
+            <button type="button" class="btn btn-outline-navy" style="padding:9px 16px;font-size:12.5px;" data-cancel-reply="${r.id}">Cancel</button>
+          </div>
+        </div>`;
+    }
+    return `
+      <div class="admin-detail-field" style="margin-top:16px;">
+        <label>Reply</label>
+        ${r.admin_reply ? `<div style="margin-bottom:8px;">${esc(r.admin_reply)}</div>` : ''}
+        <button type="button" data-open-reply="${r.id}" style="background:none;border:none;color:var(--navy,#1a2b4c);font-size:12.5px;font-weight:600;cursor:pointer;text-decoration:underline;">${r.admin_reply ? 'Edit reply' : 'Reply publicly'}</button>
+      </div>`;
+  }
+
+  async function saveReply(id) {
+    const text = document.getElementById('replyText-' + id).value.trim();
+    const { error } = await supabaseClient.from('reviews').update({
+      admin_reply: text || null,
+      admin_reply_at: text ? new Date().toISOString() : null,
+    }).eq('id', id);
+    if (error) { showToast('Could not save reply: ' + error.message, 'error'); return; }
+    showToast('Reply saved.');
+    replyFormOpenId = null;
+    loadReviews();
+  }
+
+  document.getElementById('reviewSearch').addEventListener('input', render);
+  document.getElementById('dateFrom').addEventListener('change', render);
+  document.getElementById('dateTo').addEventListener('change', render);
+
+  document.getElementById('ratingTabs').addEventListener('click', (e) => {
+    const btn = e.target.closest('.admin-filter-tab');
+    if (!btn) return;
+    activeRating = btn.dataset.rating;
+    document.querySelectorAll('#ratingTabs .admin-filter-tab').forEach(b => b.classList.toggle('active', b === btn));
+    render();
+  });
+
+  document.getElementById('exportBtn').addEventListener('click', () => {
+    const rows = visibleReviews();
+    if (!rows.length) { showToast('Nothing to export.', 'error'); return; }
+    exportCsv('reviews.csv', rows, [
+      { label: 'Date', value: r => fmtDate(r.created_at) },
+      { label: 'Product', value: r => (r.products && r.products.name) || '' },
+      { label: 'Reviewer', value: r => r.reviewer_name },
+      { label: 'Rating', value: r => r.rating },
+      { label: 'Comment', value: r => r.comment || '' },
+      { label: 'Photo Count', value: r => (r.image_urls || []).length },
+    ]);
+    showToast(`Exported ${rows.length} review${rows.length === 1 ? '' : 's'}.`);
+  });
+
+  loadReviews();
+</script>
+<script src="/assets/script.js" defer></script>
+</body>
+</html>

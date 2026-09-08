@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Leads — Admin — ND Electronic Technologies Ltd</title>
+<meta name="robots" content="noindex, nofollow" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Poppins:wght@500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/assets/styles.css" />
+<link rel="stylesheet" href="/assets/admin.css" />
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+<div class="admin-shell">
+  <div class="admin-sidebar">
+    <a href="/" class="brand" id="navBrand"></a>
+    <div class="admin-sidebar-tag">Admin Panel</div>
+    <div class="admin-global-search" id="globalSearchBox">
+      <svg><use href="#ico-search"/></svg>
+      <input type="text" id="globalSearchInput" placeholder="Search everything…" autocomplete="off" />
+      <div id="globalSearchResults"></div>
+    </div>
+    <div class="admin-nav">
+      <a href="/admin/"><svg><use href="#ico-dashboard"/></svg><span>Dashboard</span></a>
+      <a href="/admin/products/"><svg><use href="#ico-box"/></svg><span>Products</span></a>
+      <a href="/admin/coupons/"><svg><use href="#ico-tag"/></svg><span>Coupons</span></a>
+      <a href="/admin/orders/"><svg><use href="#ico-cash"/></svg><span>Orders</span></a>
+      <a href="/admin/leads/" class="active"><svg><use href="#ico-mail"/></svg><span>Leads</span></a>
+      <a href="/admin/reviews/"><svg><use href="#ico-star"/></svg><span>Reviews</span></a>
+      <a href="/admin/finance/"><svg><use href="#ico-chart"/></svg><span>Finance</span></a>
+      <a href="/admin/customers/"><svg><use href="#ico-user"/></svg><span>Customers</span></a>
+    </div>
+    <div class="admin-sidebar-foot">
+      <div class="admin-sidebar-user" id="userEmail"></div>
+      <button id="signOutBtn" class="btn btn-outline-dark" style="padding:8px 16px;font-size:12.5px;">Sign Out</button>
+    </div>
+  </div>
+  <div class="admin-main">
+    <div class="admin-head">
+      <div>
+        <h1>Leads</h1>
+        <p>"Request a Site Survey" submissions from the contact page.</p>
+      </div>
+      <input type="search" id="leadSearch" class="admin-search-input" placeholder="Search name, phone, email or service…" />
+    </div>
+
+    <div class="admin-filter-tabs" id="statusTabs">
+      <button class="admin-filter-tab active" data-status="">All</button>
+      <button class="admin-filter-tab" data-status="new">New</button>
+      <button class="admin-filter-tab" data-status="contacted">Contacted</button>
+      <button class="admin-filter-tab" data-status="closed">Closed</button>
+    </div>
+
+    <div class="admin-toolbar">
+      <span class="admin-toolbar-label">From</span>
+      <input type="date" id="dateFrom" class="admin-date-input" />
+      <span class="admin-toolbar-label">To</span>
+      <input type="date" id="dateTo" class="admin-date-input" />
+      <button type="button" class="admin-export-btn" id="exportBtn"><svg><use href="#ico-download"/></svg>Export CSV</button>
+    </div>
+
+    <div class="admin-panel">
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr><th></th><th>Date</th><th>Name</th><th>Phone</th><th>Email</th><th>Service</th><th>Location</th><th>Message</th><th>Status</th><th>Actions</th></tr>
+          </thead>
+          <tbody id="leadsBody"></tbody>
+        </table>
+        <div class="admin-empty" id="emptyState" style="display:none;">No leads yet.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/assets/supabase-config.js"></script>
+<script src="/assets/admin.js"></script>
+<script>initGlobalSearch(supabaseClient);</script>
+<script>
+  (async function guard() {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) { window.location.href = '/admin/login/'; return; }
+    const { data: profile } = await supabaseClient.from('profiles').select('is_admin, role').eq('id', session.user.id).maybeSingle();
+    if (!profile || !profile.is_admin) {
+      await supabaseClient.auth.signOut();
+      window.location.href = '/admin/login/';
+      return;
+    }
+    document.getElementById('userEmail').textContent = session.user.email;
+    if (profile.role !== 'owner') {
+      const financeLink = document.querySelector('.admin-nav a[href="/admin/finance/"]');
+      if (financeLink) financeLink.remove();
+    }
+  })();
+
+  document.getElementById('signOutBtn').addEventListener('click', async () => {
+    await supabaseClient.auth.signOut();
+    window.location.href = '/admin/login/';
+  });
+
+  function fmtDate(iso) { return new Date(iso).toLocaleString('en-UG', { dateStyle: 'medium', timeStyle: 'short' }); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+  const STATUS_LABELS = { new: 'New', contacted: 'Contacted', closed: 'Closed' };
+  const ACTION_OPTIONS = ['new', 'contacted', 'closed'];
+
+  let LEADS = [];
+  let activeStatus = '';
+  let expandedId = null;
+
+  async function loadLeads() {
+    const { data, error } = await supabaseClient
+      .from('leads')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error(error);
+      showToast('Could not load leads: ' + error.message, 'error');
+      const empty = document.getElementById('emptyState');
+      empty.textContent = 'Could not load leads: ' + error.message;
+      empty.style.display = 'block';
+      return;
+    }
+    LEADS = data || [];
+    render();
+  }
+
+  function visibleLeads() {
+    const q = document.getElementById('leadSearch').value.trim().toLowerCase();
+    const from = document.getElementById('dateFrom').value;
+    const to = document.getElementById('dateTo').value;
+    return LEADS.filter(l => {
+      if (activeStatus && l.status !== activeStatus) return false;
+      if (from && l.created_at < from) return false;
+      if (to && l.created_at.slice(0, 10) > to) return false;
+      if (!q) return true;
+      return [l.first_name, l.last_name, l.phone, l.email, l.service].some(v => (v || '').toLowerCase().includes(q));
+    });
+  }
+
+  function render() {
+    const body = document.getElementById('leadsBody');
+    const empty = document.getElementById('emptyState');
+    body.innerHTML = '';
+
+    const rows = visibleLeads();
+    if (!rows.length) { empty.style.display = 'block'; return; }
+    empty.style.display = 'none';
+
+    rows.forEach((l) => {
+      const tr = document.createElement('tr');
+      tr.className = 'admin-row-clickable' + (l.id === expandedId ? ' expanded' : '');
+      tr.dataset.id = l.id;
+      tr.innerHTML = `
+        <td><svg class="admin-expand-chevron"><use href="#ico-chevron"/></svg></td>
+        <td>${fmtDate(l.created_at)}</td>
+        <td>${esc(l.first_name)} ${esc(l.last_name)}</td>
+        <td><a href="tel:${esc(l.phone)}">${esc(l.phone)}</a></td>
+        <td>${l.email ? `<a href="mailto:${esc(l.email)}">${esc(l.email)}</a>` : '—'}</td>
+        <td>${esc(l.service)}</td>
+        <td class="admin-order-address" title="${esc(l.location)}">${esc(l.location) || '—'}</td>
+        <td class="admin-order-notes" title="${esc(l.message)}">${esc(l.message) || '—'}</td>
+        <td><span class="order-status ${l.status === 'new' ? 'pending' : l.status === 'contacted' ? 'in_progress' : 'fulfilled'}">${esc(STATUS_LABELS[l.status] || l.status)}</span></td>
+        <td>
+          <div class="admin-row-actions">
+            <select class="lead-action-select" data-id="${l.id}">
+              <option value="" disabled selected>Update status…</option>
+              ${ACTION_OPTIONS.map(s => `<option value="${s}">${esc(STATUS_LABELS[s])}</option>`).join('')}
+            </select>
+          </div>
+        </td>`;
+      body.appendChild(tr);
+
+      if (l.id === expandedId) body.appendChild(detailRow(l));
+    });
+
+    body.querySelectorAll('tr.admin-row-clickable').forEach(row => {
+      row.addEventListener('click', (e) => {
+        if (e.target.closest('select') || e.target.closest('a')) return;
+        expandedId = expandedId === row.dataset.id ? null : row.dataset.id;
+        render();
+      });
+    });
+
+    body.querySelectorAll('select.lead-action-select').forEach(sel => {
+      sel.addEventListener('click', (e) => e.stopPropagation());
+      sel.addEventListener('change', async () => {
+        const newStatus = sel.value;
+        if (!newStatus) return;
+        sel.disabled = true;
+        const { data, error } = await supabaseClient.from('leads').update({ status: newStatus }).eq('id', sel.dataset.id).select();
+        if (error) {
+          showToast('Could not update status: ' + error.message, 'error');
+        } else if (!data || !data.length) {
+          showToast('Nothing was updated — check your admin permissions.', 'error');
+        } else {
+          showToast(`Lead marked ${STATUS_LABELS[newStatus]}.`);
+        }
+        loadLeads();
+      });
+    });
+  }
+
+  function detailRow(l) {
+    const tr = document.createElement('tr');
+    tr.className = 'admin-detail-row';
+    tr.innerHTML = `
+      <td colspan="10">
+        <div class="admin-detail-inner">
+          <div class="admin-detail-field"><label>Full Message</label><div>${esc(l.message) || 'No message left.'}</div></div>
+          <div class="admin-detail-grid" style="margin-top:14px;">
+            <div class="admin-detail-field"><label>Property Location</label><div>${esc(l.location) || '—'}</div></div>
+            <div class="admin-detail-field"><label>Lead ID</label><div style="font-size:11.5px;color:var(--text-muted);">${esc(l.id)}</div></div>
+          </div>
+        </div>
+      </td>`;
+    return tr;
+  }
+
+  document.getElementById('leadSearch').addEventListener('input', render);
+  document.getElementById('dateFrom').addEventListener('change', render);
+  document.getElementById('dateTo').addEventListener('change', render);
+
+  document.getElementById('statusTabs').addEventListener('click', (e) => {
+    const btn = e.target.closest('.admin-filter-tab');
+    if (!btn) return;
+    activeStatus = btn.dataset.status;
+    document.querySelectorAll('#statusTabs .admin-filter-tab').forEach(b => b.classList.toggle('active', b === btn));
+    render();
+  });
+
+  document.getElementById('exportBtn').addEventListener('click', () => {
+    const rows = visibleLeads();
+    if (!rows.length) { showToast('Nothing to export.', 'error'); return; }
+    exportCsv('leads.csv', rows, [
+      { label: 'Date', value: l => fmtDate(l.created_at) },
+      { label: 'First Name', value: l => l.first_name },
+      { label: 'Last Name', value: l => l.last_name },
+      { label: 'Phone', value: l => l.phone },
+      { label: 'Email', value: l => l.email || '' },
+      { label: 'Service', value: l => l.service },
+      { label: 'Location', value: l => l.location },
+      { label: 'Message', value: l => l.message || '' },
+      { label: 'Status', value: l => STATUS_LABELS[l.status] || l.status },
+    ]);
+    showToast(`Exported ${rows.length} lead${rows.length === 1 ? '' : 's'}.`);
+  });
+
+  loadLeads().then(() => wireDeepLinkSearch("leadSearch"));
+</script>
+<script src="/assets/script.js" defer></script>
+</body>
+</html>

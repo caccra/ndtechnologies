@@ -6,6 +6,7 @@
 <title>Admin Login — ND Electronic Technologies Ltd</title>
 <meta name="robots" content="noindex, nofollow" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Poppins:wght@500;600;700&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/assets/styles.css" />
 <link rel="stylesheet" href="/assets/admin.css" />
@@ -38,7 +39,7 @@
 <script>
   (async function () {
     const { data: { session } } = await supabaseClient.auth.getSession();
-    if (session) window.location.href = '/admin/products/';
+    if (session) window.location.href = '/admin/';
   })();
 
   document.getElementById('loginForm').addEventListener('submit', async (e) => {
@@ -56,15 +57,23 @@
 
     // Valid credentials don't mean admin — this is the same Auth user pool
     // as customer accounts. Check the profile flag before letting them in.
-    const { data: profile } = await supabaseClient.from('profiles').select('is_admin').eq('id', data.user.id).single();
-    if (!profile || !profile.is_admin) {
+    // maybeSingle (not single) — a missing profile row must show a clear,
+    // distinct message, not throw and fall through to a misleading one.
+    const { data: profile } = await supabaseClient.from('profiles').select('is_admin').eq('id', data.user.id).maybeSingle();
+    if (!profile) {
+      await supabaseClient.auth.signOut();
+      errorBox.textContent = 'No profile record exists for this account yet — run the profiles insert from SETUP.md, then try again.';
+      errorBox.style.display = 'block';
+      return;
+    }
+    if (!profile.is_admin) {
       await supabaseClient.auth.signOut();
       errorBox.textContent = 'This account does not have admin access.';
       errorBox.style.display = 'block';
       return;
     }
 
-    window.location.href = '/admin/products/';
+    window.location.href = '/admin/';
   });
 </script>
 </body>

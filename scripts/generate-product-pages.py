@@ -78,6 +78,26 @@ def fetch_active_products(supabase_url, anon_key):
         sys.exit(f'Could not reach Supabase: {e}')
 
 
+def fetch_review_stats(supabase_url, anon_key):
+    """One query for every product's rating, keyed by product_id, so each
+    product page can carry a real aggregateRating instead of skipping it."""
+    api_url = f'{supabase_url}/rest/v1/reviews?select=product_id,rating'
+    req = urllib.request.Request(api_url, headers={
+        'apikey': anon_key,
+        'Authorization': f'Bearer {anon_key}',
+    })
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            rows = json.loads(resp.read().decode('utf-8'))
+    except urllib.error.URLError:
+        return {}
+    stats = {}
+    for r in rows:
+        pid = str(r.get('product_id'))
+        stats.setdefault(pid, []).append(r.get('rating') or 0)
+    return {pid: (sum(v) / len(v), len(v)) for pid, v in stats.items() if v}
+
+
 def esc(s):
     if s is None:
         return ''
@@ -156,13 +176,15 @@ PRODUCT_PAGE_TEMPLATE = """<!DOCTYPE html>
 <!--
   This page is a real static render of this product (see
   scripts/generate-product-pages.py) so search/AI crawlers that don't run
-  JavaScript can actually read it. A visitor's browser immediately
-  redirects to the live, interactive version at /product/?id={product_id}
-  (cart, quantity picker, reviews, wishlist) — everything below this point
-  is what a crawler sees; a human never does.
+  JavaScript can actually read it — it is NOT redirected away from itself
+  (a meta-refresh here would send Google straight back to the JS-only page
+  this file exists to work around). A visitor's browser instead redirects
+  itself, via the script tag below, to the live interactive version at
+  /product/?id={product_id} (cart, quantity picker, reviews, wishlist) —
+  crawlers that don't execute JavaScript simply never run that script and
+  stay right here, which is the point.
 -->
-<noscript></noscript>
-<meta http-equiv="refresh" content="0; url=/product/?id={product_id}" />
+<script>window.location.replace('/product/?id={product_id}');</script>
 
 <section style="padding-top:116px;padding-bottom:80px;">
   <div class="container">
@@ -197,7 +219,7 @@ PRODUCT_PAGE_TEMPLATE = """<!DOCTYPE html>
 """
 
 
-def render_product_page(p, supabase_url):
+def render_product_page(p, supabase_url, review_stats):
     page_url = f'https://ndelectronictechnologies.com/product/{p["id"]}/'
     name = p.get('name') or 'Product'
     description = (p.get('description') or '').strip() or f'{name} — available from ND Electronic Technologies Ltd, delivered in Kampala, Uganda.'
@@ -213,7 +235,7 @@ def render_product_page(p, supabase_url):
         'description': description,
         'category': category,
         'url': page_url,
-        'brand': {'@type': 'Brand', 'name': 'ND Electronic Technologies Ltd'},
+        'brand': {'@type': 'Brand', 'name': p.get('brand') or 'ND Electronic Technologies Ltd'},
         'offers': {
             '@type': 'Offer',
             'priceCurrency': 'UGX',
@@ -226,9 +248,20 @@ def render_product_page(p, supabase_url):
     if image:
         product_ld['image'] = image
 
+    stats = review_stats.get(str(p['id']))
+    if stats:
+        avg, count = stats
+        product_ld['aggregateRating'] = {
+            '@type': 'AggregateRating',
+            'ratingValue': round(avg, 1),
+            'reviewCount': count,
+        }
+
+    meta_description = ' '.join(description.split())[:200]
+
     return PRODUCT_PAGE_TEMPLATE.format(
         title=esc(f'{name} — ND Electronic Technologies Ltd'),
-        description=esc(description[:200]),
+        description=esc(meta_description),
         page_url=page_url,
         image=esc(image),
         product_ld=json.dumps(product_ld, ensure_ascii=False, indent=2),
@@ -271,14 +304,21 @@ def update_shop_static_grid(products):
     if STATIC_GRID_START not in text:
         # First run — insert the block right after #shopGrid's closing div,
         # inside the same <section>, so it lives alongside the live JS grid.
+        # Deliberately NOT wrapped in <noscript> — Googlebot and most other
+        # crawlers parse <noscript> content inconsistently (some skip it for
+        # link discovery entirely), which would defeat the point. It's
+        # rendered plainly instead, and assets/shop.js hides it (see
+        # `#staticProductGrid`) the moment its own JS render succeeds, so a
+        # real visitor only ever sees this for the brief instant before the
+        # live grid takes over — or indefinitely, if JS fails.
         anchor = '<div class="shop-empty" id="shopEmpty" style="display:none;">'
         if anchor not in text:
             print('WARNING: could not find insertion point in shop/index.html — skipping static grid update.')
             return
         block = (
-            f'    <noscript>\n{STATIC_GRID_START}\n'
-            f'      <div class="shop-grid">\n{{items}}\n      </div>\n'
-            f'{STATIC_GRID_END}\n    </noscript>\n    ' + anchor
+            f'    {STATIC_GRID_START}\n'
+            f'    <div class="shop-grid" id="staticProductGrid">\n{{items}}\n    </div>\n'
+            f'    {STATIC_GRID_END}\n    ' + anchor
         )
         text = text.replace('    ' + anchor, block)
 
@@ -286,10 +326,44 @@ def update_shop_static_grid(products):
     pattern = re.compile(
         re.escape(STATIC_GRID_START) + r'.*?' + re.escape(STATIC_GRID_END), re.S
     )
-    replacement = f'{STATIC_GRID_START}\n      <div class="shop-grid">\n{items_html}\n      </div>\n{STATIC_GRID_END}'
+    replacement = f'{STATIC_GRID_START}\n    <div class="shop-grid" id="staticProductGrid">\n{items_html}\n    </div>\n{STATIC_GRID_END}'
     text, n = pattern.subn(replacement, text)
     if n:
         open(path, 'w', encoding='utf-8').write(text)
+
+
+SITEMAP_MARKER_START = '  <!-- PRODUCT_URLS:START — regenerated by scripts/generate-product-pages.py, do not hand-edit -->'
+SITEMAP_MARKER_END = '  <!-- PRODUCT_URLS:END -->'
+
+
+def update_sitemap(products):
+    """Keeps product URLs in sitemap.xml in sync automatically, instead of
+    relying on a human to remember a manual step every time products change."""
+    path = os.path.join(ROOT, 'sitemap.xml')
+    if not os.path.exists(path):
+        print('WARNING: sitemap.xml not found — skipping sitemap update.')
+        return
+    text = open(path, encoding='utf-8').read()
+    today = __import__('datetime').date.today().isoformat()
+    entries = '\n'.join(
+        f'  <url>\n'
+        f'    <loc>https://ndelectronictechnologies.com/product/{p["id"]}/</loc>\n'
+        f'    <lastmod>{today}</lastmod>\n'
+        f'  </url>'
+        for p in products if p.get('id')
+    )
+    block = f'{SITEMAP_MARKER_START}\n{entries}\n{SITEMAP_MARKER_END}'
+
+    if SITEMAP_MARKER_START in text:
+        pattern = re.compile(re.escape(SITEMAP_MARKER_START) + r'.*?' + re.escape(SITEMAP_MARKER_END), re.S)
+        text, n = pattern.subn(block, text)
+    else:
+        anchor = '</urlset>'
+        if anchor not in text:
+            print('WARNING: could not find </urlset> in sitemap.xml — skipping sitemap update.')
+            return
+        text = text.replace(anchor, block + '\n' + anchor)
+    open(path, 'w', encoding='utf-8').write(text)
 
 
 def main():
@@ -297,6 +371,7 @@ def main():
     print(f'Fetching active products from {supabase_url} ...')
     products = fetch_active_products(supabase_url, anon_key)
     print(f'Found {len(products)} active product(s).')
+    review_stats = fetch_review_stats(supabase_url, anon_key)
 
     product_dir = os.path.join(ROOT, 'product')
     written = 0
@@ -306,14 +381,14 @@ def main():
         out_dir = os.path.join(product_dir, str(p['id']))
         os.makedirs(out_dir, exist_ok=True)
         out_path = os.path.join(out_dir, 'index.html')
-        html = render_product_page(p, supabase_url)
+        html = render_product_page(p, supabase_url, review_stats)
         open(out_path, 'w', encoding='utf-8').write(html)
         written += 1
         print(f'  wrote product/{p["id"]}/index.html — {p.get("name")}')
 
     update_shop_static_grid(products)
-    print(f'Done — {written} static product page(s) written, shop grid updated.')
-    print('Remember to also add these URLs to sitemap.xml (or re-run your sitemap generator) and redeploy.')
+    update_sitemap(products)
+    print(f'Done — {written} static product page(s) written, shop grid and sitemap.xml updated.')
 
 
 if __name__ == '__main__':

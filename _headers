@@ -1,0 +1,20 @@
+# Security headers for ND Electronic Technologies Ltd.
+#
+# This file's syntax is understood natively by Netlify and Cloudflare Pages —
+# drop the repo onto either one and these apply automatically, no extra
+# config needed. On a different host (plain Apache/Nginx/shared hosting),
+# these same headers need to be set at the server config level instead —
+# see SETUP.md.
+#
+# Left deliberately without a strict Content-Security-Policy: this site
+# loads Google Fonts, Google Maps, the Supabase JS SDK, and the Flutterwave
+# checkout widget from several third-party origins, and a wrong CSP would
+# silently break checkout rather than fail loudly. Add one once every
+# external script/style source in use is enumerated and tested.
+
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: geolocation=(self), camera=(), microphone=()
+  Strict-Transport-Security: max-age=31536000; includeSubDomains

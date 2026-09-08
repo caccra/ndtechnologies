@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Payment Receipt — ND Electronic Technologies Ltd</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap"
+    rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: 'Jost', sans-serif; color: #17212e; margin: 0; padding: 40px; background: #f4f5f3; font-size: 14px; }
+    .slip { max-width: 720px; margin: 0 auto; background: #fff; border: 1px solid #dfe1dc; border-radius: 10px; padding: 40px; }
+    .slip-head { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #17212e; padding-bottom: 18px; margin-bottom: 24px; }
+    .slip-head h1 { font-family: 'Poppins', sans-serif; font-size: 19px; margin: 0 0 4px; }
+    .slip-head p { margin: 0; color: #6b7280; font-size: 12.5px; line-height: 1.5; }
+    .slip-title { text-align: right; }
+    .slip-title .label { font-family: 'Poppins', sans-serif; font-size: 20px; font-weight: 700; letter-spacing: .5px; }
+    .slip-title .ref { font-size: 12px; color: #6b7280; margin-top: 4px; font-family: monospace; }
+    .slip-title .status { display: inline-block; margin-top: 8px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; padding: 4px 10px; border-radius: 12px; }
+    .slip-title .status.pending { background: #E7ECF3; color: #788492; }
+    .slip-title .status.paid { background: #e0f7fc; color: #0096c7; }
+    .slip-title .status.in_progress { background: #e3f0ff; color: #0d3d85; }
+    .slip-title .status.dispatched { background: #EDE4FB; color: #6B3FA0; }
+    .slip-title .status.fulfilled { background: #DFF3E3; color: #1E7A3C; }
+    .slip-title .status.failed, .slip-title .status.cancelled { background: #FCE8E4; color: #B0301A; }
+    .slip-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 26px; }
+    .slip-field label { display: block; font-size: 10.5px; text-transform: uppercase; letter-spacing: .5px; color: #6b7280; font-weight: 700; margin-bottom: 4px; }
+    .slip-field div { font-size: 14px; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+    th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: #6b7280; border-bottom: 1.5px solid #17212e; padding: 0 0 8px; }
+    td { padding: 10px 0; border-bottom: 1px solid #e5e7eb; }
+    td.num, th.num { text-align: right; }
+    td.qty, th.qty { text-align: center; width: 60px; }
+    .totals { max-width: 280px; margin-left: auto; margin-top: 14px; }
+    .totals .row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 13.5px; }
+    .totals .row.grand { border-top: 1.5px solid #17212e; margin-top: 6px; padding-top: 10px; font-weight: 700; font-size: 16px; }
+    .totals .row.refund { color: #B0301A; }
+    .notes-box { background: #f9f9f7; border: 1px solid #e5e7eb; border-radius: 8px; padding: 14px 16px; font-size: 13px; margin: 20px 0; }
+    .slip-foot { text-align: center; font-size: 12px; color: #6b7280; margin-top: 30px; }
+    .toolbar { max-width: 720px; margin: 0 auto 16px; display: flex; justify-content: space-between; }
+    .toolbar a { color: #6b7280; font-size: 13px; text-decoration: none; }
+    .toolbar button { font-family: 'Jost', sans-serif; font-weight: 600; background: #17212e; color: #fff; border: none; border-radius: 6px; padding: 10px 20px; cursor: pointer; }
+    #err { max-width: 720px; margin: 40px auto; text-align: center; color: #b3261e; }
+    @media print {
+      body { background: #fff; padding: 0; }
+      .toolbar { display: none; }
+      .slip { border: none; padding: 0; }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="toolbar"><a href="/admin/orders/">← Back to Orders</a><button onclick="window.print()">Print / Save PDF</button></div>
+  <div id="err" style="display:none;"></div>
+  <div class="slip" id="slip" style="display:none;">
+    <div class="slip-head">
+      <div>
+        <h1>ND Electronic Technologies Ltd</h1>
+        <p>Kampala, Uganda<br />sales@ndelectronictechnologies.com</p>
+      </div>
+      <div class="slip-title">
+        <div class="label">Payment Receipt</div>
+        <div class="ref" id="slipRef"></div>
+        <span class="status" id="slipStatus"></span>
+      </div>
+    </div>
+
+    <div class="slip-grid">
+      <div class="slip-field"><label>Customer</label><div id="slipName"></div></div>
+      <div class="slip-field"><label>Phone</label><div id="slipPhone"></div></div>
+      <div class="slip-field"><label>Email</label><div id="slipEmail"></div></div>
+      <div class="slip-field"><label>Order Date</label><div id="slipDate"></div></div>
+      <div class="slip-field" style="grid-column:1/-1;"><label>Delivery Address</label><div id="slipAddress"></div></div>
+      <div class="slip-field"><label>Payment Method</label><div id="slipPayment"></div></div>
+      <div class="slip-field"><label>Payment Reference</label><div id="slipPaymentRef"></div></div>
+    </div>
+
+    <table>
+      <thead><tr><th>Item</th><th class="qty">Qty</th><th class="num">Unit Price</th><th class="num">Total</th></tr></thead>
+      <tbody id="slipItems"></tbody>
+    </table>
+
+    <div class="totals" id="slipTotals"></div>
+
+    <div class="notes-box" id="slipNotesBox" style="display:none;">
+      <strong>Notes:</strong> <span id="slipNotes"></span>
+    </div>
+
+    <div class="slip-foot">Internal record — not for redistribution outside ND Electronic Technologies Ltd.</div>
+  </div>
+
+  <script src="/assets/supabase-config.js"></script>
+  <script>
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+    function ugx(n) { return 'UGX ' + Number(n || 0).toLocaleString('en-UG'); }
+    const STATUS_LABELS = {
+      pending: 'Pending', paid: 'Paid', in_progress: 'In Progress',
+      dispatched: 'Dispatched', fulfilled: 'Fulfilled / Complete',
+      failed: 'Failed', cancelled: 'Cancelled',
+    };
+
+    (async function () {
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (!session) { window.location.href = '/admin/login/'; return; }
+      const { data: profile } = await supabaseClient.from('profiles').select('is_admin').eq('id', session.user.id).maybeSingle();
+      if (!profile || !profile.is_admin) { window.location.href = '/admin/login/'; return; }
+
+      const id = new URLSearchParams(window.location.search).get('id');
+      const err = document.getElementById('err');
+      if (!id) { err.textContent = 'No order specified.'; err.style.display = 'block'; return; }
+
+      const { data: o, error } = await supabaseClient
+        .from('orders')
+        .select('*, order_items(product_name, quantity, unit_price, line_total)')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (error || !o) {
+        err.textContent = 'Could not load order' + (error ? ': ' + error.message : '.');
+        err.style.display = 'block';
+        return;
+      }
+
+      document.getElementById('slipRef').textContent = 'Order ' + (o.payment_tx_ref || o.id);
+      const statusEl = document.getElementById('slipStatus');
+      statusEl.textContent = STATUS_LABELS[o.status] || o.status;
+      statusEl.className = 'status ' + esc(o.status);
+      document.getElementById('slipName').textContent = o.customer_name || '—';
+      document.getElementById('slipPhone').textContent = o.customer_phone || '—';
+      document.getElementById('slipEmail').textContent = o.customer_email || '—';
+      document.getElementById('slipAddress').textContent = o.delivery_address || '—';
+      document.getElementById('slipDate').textContent = new Date(o.created_at).toLocaleDateString('en-UG', { dateStyle: 'long' });
+      document.getElementById('slipPayment').textContent = o.payment_provider === 'cod' ? 'Cash on Delivery' : 'Paid Online';
+      document.getElementById('slipPaymentRef').textContent = o.payment_tx_ref || '—';
+
+      document.getElementById('slipItems').innerHTML = (o.order_items || []).map(i => `
+        <tr><td>${esc(i.product_name)}</td><td class="qty">${i.quantity}</td><td class="num">${ugx(i.unit_price)}</td><td class="num">${ugx(i.line_total)}</td></tr>
+      `).join('') || '<tr><td colspan="4">No items on record.</td></tr>';
+
+      let totalsHtml = `<div class="row"><span>Subtotal</span><span>${ugx(o.subtotal)}</span></div>`;
+      if (o.discount_amount > 0) totalsHtml += `<div class="row"><span>Discount${o.coupon_code ? ' (' + esc(o.coupon_code) + ')' : ''}</span><span>−${ugx(o.discount_amount)}</span></div>`;
+      totalsHtml += `<div class="row grand"><span>Total</span><span>${ugx(o.total)}</span></div>`;
+      if (o.refunded_amount > 0) totalsHtml += `<div class="row refund"><span>Refunded${o.refunded_at ? ' (' + new Date(o.refunded_at).toLocaleDateString('en-UG', { dateStyle: 'medium' }) + ')' : ''}${o.refund_reason ? ' — ' + esc(o.refund_reason) : ''}</span><span>−${ugx(o.refunded_amount)}</span></div>`;
+      document.getElementById('slipTotals').innerHTML = totalsHtml;
+
+      if (o.notes) {
+        document.getElementById('slipNotes').textContent = o.notes;
+        document.getElementById('slipNotesBox').style.display = 'block';
+      }
+
+      document.getElementById('slip').style.display = 'block';
+    })();
+  </script>
+</body>
+
+</html>

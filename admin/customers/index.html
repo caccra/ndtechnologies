@@ -6,6 +6,7 @@
 <title>Customers — Admin — ND Electronic Technologies Ltd</title>
 <meta name="robots" content="noindex, nofollow" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Poppins:wght@500;600;700&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/assets/styles.css" />
 <link rel="stylesheet" href="/assets/admin.css" />
@@ -14,32 +15,47 @@
 <body>
 
 <div class="admin-shell">
-  <div class="admin-topbar">
+  <div class="admin-sidebar">
     <a href="/" class="brand" id="navBrand"></a>
-    <div class="admin-topbar-right">
-      <a href="/admin/products/" style="color:rgba(255,255,255,.7);font-size:13px;font-weight:600;text-decoration:none;">Products</a>
-      <a href="/admin/orders/" style="color:rgba(255,255,255,.7);font-size:13px;font-weight:600;text-decoration:none;">Orders</a>
-      <a href="/admin/customers/" style="color:var(--amber);font-size:13px;font-weight:600;text-decoration:none;">Customers</a>
-      <span id="userEmail"></span>
+    <div class="admin-sidebar-tag">Admin Panel</div>
+    <div class="admin-global-search" id="globalSearchBox">
+      <svg><use href="#ico-search"/></svg>
+      <input type="text" id="globalSearchInput" placeholder="Search everything…" autocomplete="off" />
+      <div id="globalSearchResults"></div>
+    </div>
+    <div class="admin-nav">
+      <a href="/admin/"><svg><use href="#ico-dashboard"/></svg><span>Dashboard</span></a>
+      <a href="/admin/products/"><svg><use href="#ico-box"/></svg><span>Products</span></a>
+      <a href="/admin/coupons/"><svg><use href="#ico-tag"/></svg><span>Coupons</span></a>
+      <a href="/admin/orders/"><svg><use href="#ico-cash"/></svg><span>Orders</span></a>
+      <a href="/admin/leads/"><svg><use href="#ico-mail"/></svg><span>Leads</span></a>
+      <a href="/admin/reviews/"><svg><use href="#ico-star"/></svg><span>Reviews</span></a>
+      <a href="/admin/finance/"><svg><use href="#ico-chart"/></svg><span>Finance</span></a>
+      <a href="/admin/customers/" class="active"><svg><use href="#ico-user"/></svg><span>Customers</span></a>
+    </div>
+    <div class="admin-sidebar-foot">
+      <div class="admin-sidebar-user" id="userEmail"></div>
       <button id="signOutBtn" class="btn btn-outline-dark" style="padding:8px 16px;font-size:12.5px;">Sign Out</button>
     </div>
   </div>
-
   <div class="admin-main">
     <div class="admin-head">
       <div>
         <h1>Customers</h1>
         <p>Everyone who has placed an order, built from your order history — grouped by phone number.</p>
       </div>
-      <input type="search" id="customerSearch" placeholder="Search name, phone or email…"
-        style="padding:10px 14px;border:1.5px solid var(--line);border-radius:var(--radius);font-size:13.5px;font-family:var(--font-body);min-width:240px;" />
+      <input type="search" id="customerSearch" class="admin-search-input" placeholder="Search name, phone or email…" />
+    </div>
+
+    <div class="admin-toolbar">
+      <button type="button" class="admin-export-btn" id="exportBtn"><svg><use href="#ico-download"/></svg>Export CSV</button>
     </div>
 
     <div class="admin-panel">
       <div class="admin-table-wrap">
         <table class="admin-table admin-customers-table">
           <thead>
-            <tr><th>Customer</th><th>Phone</th><th>Email</th><th>Orders</th><th>Total Spent</th><th>Last Order</th><th>Delivery Address</th></tr>
+            <tr><th>Customer</th><th>Type</th><th>Phone</th><th>Email</th><th>Orders</th><th>Total Spent</th><th>Engagement</th><th>Last Order</th><th>Delivery Address</th></tr>
           </thead>
           <tbody id="customersBody"></tbody>
         </table>
@@ -50,6 +66,8 @@
 </div>
 
 <script src="/assets/supabase-config.js"></script>
+<script src="/assets/admin.js"></script>
+<script>initGlobalSearch(supabaseClient);</script>
 <script>
   (async function guard() {
     const { data: { session } } = await supabaseClient.auth.getSession();
@@ -58,13 +76,17 @@
     // this account is actually flagged admin before showing anything here;
     // RLS blocks the real data either way, but a non-admin shouldn't even
     // see the dashboard shell.
-    const { data: profile } = await supabaseClient.from('profiles').select('is_admin').eq('id', session.user.id).single();
+    const { data: profile } = await supabaseClient.from('profiles').select('is_admin, role').eq('id', session.user.id).maybeSingle();
     if (!profile || !profile.is_admin) {
       await supabaseClient.auth.signOut();
       window.location.href = '/admin/login/';
       return;
     }
     document.getElementById('userEmail').textContent = session.user.email;
+    if (profile.role !== 'owner') {
+      const financeLink = document.querySelector('.admin-nav a[href="/admin/finance/"]');
+      if (financeLink) financeLink.remove();
+    }
   })();
 
   document.getElementById('signOutBtn').addEventListener('click', async () => {
@@ -85,13 +107,19 @@
   async function loadCustomers() {
     const { data: orders, error } = await supabaseClient
       .from('orders')
-      .select('customer_name, customer_phone, customer_email, delivery_address, total, status, created_at')
+      .select('customer_id, customer_name, customer_phone, customer_email, delivery_address, total, status, created_at')
       .order('created_at', { ascending: false });
 
     const body = document.getElementById('customersBody');
     const empty = document.getElementById('emptyState');
 
-    if (error) { console.error(error); return; }
+    if (error) {
+      console.error(error);
+      showToast('Could not load customers: ' + error.message, 'error');
+      empty.textContent = 'Could not load customers: ' + error.message;
+      empty.style.display = 'block';
+      return;
+    }
 
     const byPhone = new Map();
     orders.forEach(o => {
@@ -105,15 +133,38 @@
           lastOrderAt: o.created_at,
           orderCount: 0,
           totalSpent: 0,
+          customerId: null,
+          wishlistCount: 0,
+          reviewCount: 0,
         });
       }
       const c = byPhone.get(key);
       c.orderCount += 1;
       if (o.status !== 'failed' && o.status !== 'cancelled') c.totalSpent += Number(o.total);
+      if (o.customer_id) c.customerId = o.customer_id; // registered — was signed in for at least one order
       // orders are sorted newest-first, so the first one seen per customer is already their latest details
     });
 
     CUSTOMERS = Array.from(byPhone.values()).sort((a, b) => new Date(b.lastOrderAt) - new Date(a.lastOrderAt));
+
+    // Engagement counts only apply to registered customers — wishlist/reviews
+    // are tied to an auth.uid(), which guest checkouts never have.
+    const registeredIds = CUSTOMERS.filter(c => c.customerId).map(c => c.customerId);
+    if (registeredIds.length) {
+      const [{ data: wishlist }, { data: reviews }] = await Promise.all([
+        supabaseClient.from('wishlist_items').select('customer_id').in('customer_id', registeredIds),
+        supabaseClient.from('reviews').select('customer_id').in('customer_id', registeredIds),
+      ]);
+      const wCounts = new Map(), rCounts = new Map();
+      (wishlist || []).forEach(w => wCounts.set(w.customer_id, (wCounts.get(w.customer_id) || 0) + 1));
+      (reviews || []).forEach(r => rCounts.set(r.customer_id, (rCounts.get(r.customer_id) || 0) + 1));
+      CUSTOMERS.forEach(c => {
+        if (!c.customerId) return;
+        c.wishlistCount = wCounts.get(c.customerId) || 0;
+        c.reviewCount = rCounts.get(c.customerId) || 0;
+      });
+    }
+
     renderCustomers();
   }
 
@@ -134,10 +185,12 @@
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${esc(c.name)}</td>
+        <td><span class="admin-status-pill ${c.customerId ? 'on' : 'off'}">${c.customerId ? 'Registered' : 'Guest'}</span></td>
         <td><a href="tel:${esc(c.phone)}">${esc(c.phone)}</a></td>
         <td>${c.email ? `<a href="mailto:${esc(c.email)}">${esc(c.email)}</a>` : '—'}</td>
         <td>${c.orderCount}</td>
         <td class="total">${ugx(c.totalSpent)}</td>
+        <td>${c.customerId ? `♥ ${c.wishlistCount} · ★ ${c.reviewCount}` : '—'}</td>
         <td>${fmtDate(c.lastOrderAt)}</td>
         <td>${esc(c.address)}</td>`;
       body.appendChild(tr);
@@ -146,7 +199,26 @@
 
   document.getElementById('customerSearch').addEventListener('input', renderCustomers);
 
-  loadCustomers();
+  document.getElementById('exportBtn').addEventListener('click', () => {
+    const q = document.getElementById('customerSearch').value.trim().toLowerCase();
+    const rows = CUSTOMERS.filter(c => !q || [c.name, c.phone, c.email].some(v => (v || '').toLowerCase().includes(q)));
+    if (!rows.length) { showToast('Nothing to export.', 'error'); return; }
+    exportCsv('customers.csv', rows, [
+      { label: 'Name', value: c => c.name },
+      { label: 'Type', value: c => c.customerId ? 'Registered' : 'Guest' },
+      { label: 'Phone', value: c => c.phone },
+      { label: 'Email', value: c => c.email || '' },
+      { label: 'Orders', value: c => c.orderCount },
+      { label: 'Total Spent (UGX)', value: c => c.totalSpent },
+      { label: 'Wishlist Items', value: c => c.wishlistCount },
+      { label: 'Reviews Written', value: c => c.reviewCount },
+      { label: 'Last Order', value: c => fmtDate(c.lastOrderAt) },
+      { label: 'Delivery Address', value: c => c.address || '' },
+    ]);
+    showToast(`Exported ${rows.length} customer${rows.length === 1 ? '' : 's'}.`);
+  });
+
+  loadCustomers().then(() => wireDeepLinkSearch("customerSearch"));
 </script>
 <script src="/assets/script.js" defer></script>
 </body>

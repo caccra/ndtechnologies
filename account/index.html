@@ -12,6 +12,7 @@
 <link rel="apple-touch-icon" href="/assets/images/apple-touch-icon.png" />
 <meta name="theme-color" content="#0a1628" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Poppins:wght@500;600;700&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/assets/styles.css" />
 <link rel="stylesheet" href="/assets/admin.css" />
@@ -19,6 +20,16 @@
 </head>
 <body data-page="account">
 
+<div class="topbar">
+  <div class="topbar-right-bg"></div>
+  <div class="topbar-inner">
+    <div class="topbar-left">
+      <a href="tel:+256704399665"><svg><use href="#ico-phone"/></svg> 0704 399665 / 0773 270782</a>
+      <a href="mailto:info@ndelectronictechnologies.com"><svg><use href="#ico-mail"/></svg> info@ndelectronictechnologies.com / ndtechnologiesltd@gmail.com</a>
+    </div>
+    <div class="topbar-right"><svg><use href="#ico-clock"/></svg> Mon &ndash; Sat 8:00am &ndash; 7:00pm</div>
+  </div>
+</div>
 <nav id="navbar">
   <a href="/" class="brand" id="navBrand"></a>
   <ul class="nav-links">
@@ -29,7 +40,7 @@
     <li><a href="/contact/" data-nav="contact">Contact</a></li>
   </ul>
   <div class="nav-right">
-    <a href="/account/" class="account-icon-link" aria-label="Account"><svg><use href="#ico-user"/></svg></a>
+    <a href="/account/" class="account-icon-link" aria-label="Account"><svg><use href="#ico-user"/></svg><span class="account-name"></span></a>
     <a href="/cart/" class="cart-icon-link" aria-label="Cart">
       <svg viewBox="0 0 24 24" fill="none"><path d="M3 4h2l2.4 12.2a2 2 0 0 0 2 1.8h7.6a2 2 0 0 0 2-1.6L21 8H6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="10" cy="21" r="1.4" fill="currentColor"/><circle cx="17" cy="21" r="1.4" fill="currentColor"/></svg>
       <span class="cart-badge" data-cart-count>0</span>
@@ -79,6 +90,7 @@
         <div class="dashboard-section" id="section-orders">
           <div class="dashboard-section-head"><h2>Orders</h2><p>Everything you've bought, most recent first.</p></div>
           <div class="account-orders" id="ordersWrap"><p style="color:var(--text-muted);font-size:13.5px;">Loading…</p></div>
+          <div class="admin-pagination" id="ordersPagination"></div>
         </div>
 
         <!-- INBOX -->
@@ -104,10 +116,11 @@
           <div class="dashboard-section-head"><h2>Payment History</h2><p>Every transaction tied to your orders.</p></div>
           <div class="admin-table-wrap" style="background:var(--white);border:1.5px solid var(--line);border-radius:var(--radius-lg);padding:6px 20px;">
             <table class="admin-table" id="paymentsTable">
-              <thead><tr><th>Date</th><th>Reference</th><th>Method</th><th>Amount</th><th>Status</th></tr></thead>
-              <tbody id="paymentsBody"><tr><td colspan="5" style="color:var(--text-muted);">Loading…</td></tr></tbody>
+              <thead><tr><th>Date</th><th>Reference</th><th>Method</th><th>Amount</th><th>Status</th><th>Receipt</th></tr></thead>
+              <tbody id="paymentsBody"><tr><td colspan="6" style="color:var(--text-muted);">Loading…</td></tr></tbody>
             </table>
           </div>
+          <div class="admin-pagination" id="paymentsPagination"></div>
         </div>
 
         <!-- ADDRESS BOOK -->
@@ -139,7 +152,11 @@
             <div class="form-success" id="accountSuccess" style="background:var(--amber-light);color:var(--ink);border-radius:var(--radius);padding:11px 14px;font-size:13px;margin-bottom:16px;display:none;">Saved.</div>
             <form id="accountForm">
               <div class="form-group"><label>Full Name</label><input type="text" id="fullName" /></div>
-              <div class="form-group"><label>Email</label><input type="email" id="email" disabled style="opacity:.65;" /></div>
+              <div class="form-group">
+                <label>Email</label>
+                <input type="email" id="email" disabled style="opacity:.65;" />
+                <p style="font-size:11.5px;color:var(--text-muted);margin-top:6px;">Your email is how we and Supabase identify your account, so it can't be changed here — <a href="/contact/">contact us</a> if you need it updated.</p>
+              </div>
               <div class="form-group"><label>Phone Number</label><input type="tel" id="phone" placeholder="+256 7__ ___ ___" /></div>
               <button type="submit" class="btn btn-primary" id="saveBtn" style="width:100%;justify-content:center;">Save Changes</button>
             </form>
@@ -201,6 +218,7 @@
 <script src="/assets/script.js" defer></script>
 <script src="/assets/cart.js"></script>
 <script src="/assets/supabase-config.js"></script>
+<script src="/assets/admin.js"></script>
 <script src="/assets/maps-config.js"></script>
 <script src="/assets/address-map.js"></script>
 <script>
@@ -282,39 +300,121 @@
     if (ORDERS) return ORDERS;
     const { data, error } = await supabaseClient
       .from('orders')
-      .select('*, order_items(product_name, quantity)')
+      .select('*, order_items(product_id, product_name, quantity, unit_price, line_total, products(price, image_url, is_active, stock))')
       .eq('customer_id', currentUser.id)
       .order('created_at', { ascending: false });
     ORDERS = error ? [] : data;
     return ORDERS;
   }
 
+  // Visual step order for the tracking stepper — COD and online orders both
+  // pass through here, just starting from a different first "paid" moment.
+  const STEP_ORDER = ['pending', 'paid', 'in_progress', 'dispatched', 'fulfilled'];
+  function trackingStepperHtml(status) {
+    if (status === 'failed' || status === 'cancelled') {
+      return `<div class="order-tracker cancelled"><span class="order-status ${esc(status)}">${esc(STATUS_LABELS[status] || status)}</span></div>`;
+    }
+    const idx = Math.max(0, STEP_ORDER.indexOf(status));
+    const labels = ['Placed', 'Paid', 'In Progress', 'Dispatched', 'Fulfilled'];
+    return `<div class="order-tracker">${labels.map((label, i) => `
+      <div class="order-tracker-step${i <= idx ? ' done' : ''}${i === idx ? ' current' : ''}">
+        <span class="dot"></span><span class="label">${label}</span>
+      </div>`).join('')}</div>`;
+  }
+
   /* ══════════════════ ORDERS ══════════════════ */
+  const ORDERS_PAGE_SIZE = 5;
+  let ordersPage = 1;
+
   async function loadOrders() {
-    const wrap = document.getElementById('ordersWrap');
     const orders = await fetchOrders();
+    const wrap = document.getElementById('ordersWrap');
 
     if (!orders.length) {
       wrap.innerHTML = `<div class="account-empty"><p style="margin-bottom:16px;">You haven't placed any orders yet.</p><a href="/shop/" class="btn btn-primary">Browse the Shop →</a></div>`;
       return;
     }
+    renderOrdersPage();
+  }
 
-    wrap.innerHTML = orders.map(o => {
-      const items = (o.order_items || []).map(i => `${esc(i.product_name)} ×${i.quantity}`).join(', ');
+  function renderOrdersPage() {
+    const wrap = document.getElementById('ordersWrap');
+    const orders = ORDERS || [];
+    const totalPages = Math.max(1, Math.ceil(orders.length / ORDERS_PAGE_SIZE));
+    ordersPage = Math.min(ordersPage, totalPages);
+    const pageOrders = orders.slice((ordersPage - 1) * ORDERS_PAGE_SIZE, ordersPage * ORDERS_PAGE_SIZE);
+
+    wrap.innerHTML = pageOrders.map(o => {
       const isCod = o.payment_provider === 'cod';
+      const itemsHtml = (o.order_items || []).map(i => `
+        <div class="account-order-item-row">
+          ${i.products && i.products.image_url ? `<img src="${esc(i.products.image_url)}" alt="">` : '<div class="account-order-item-noimg"></div>'}
+          <span class="name">${esc(i.product_name)}</span>
+          <span class="qty">×${i.quantity}</span>
+          <span class="price">${ugx(i.line_total)}</span>
+        </div>`).join('') || '<p style="color:var(--text-muted);font-size:13px;">No items on record.</p>';
+
       return `
         <div class="account-order-card">
           <div class="account-order-head">
             <div><div class="ref">Ref: ${esc(o.payment_tx_ref || o.id)}</div><div class="date">${fmtDate(o.created_at)}</div></div>
             <span class="order-status ${esc(o.status)}">${esc(STATUS_LABELS[o.status] || o.status)}</span>
           </div>
-          <div class="account-order-items">${items || '—'}</div>
+          ${trackingStepperHtml(o.status)}
+          <div class="account-order-items">${itemsHtml}</div>
           <div class="account-order-foot">
             <span>${isCod ? 'Cash on Delivery' : 'Paid Online'} · ${esc(o.delivery_address)}</span>
             <span class="total">${ugx(o.total)}</span>
           </div>
+          <div class="account-order-actions">
+            ${o.status === 'pending' ? `<button type="button" class="btn btn-outline-navy" data-cancel-order="${o.id}" style="padding:9px 16px;font-size:12.5px;">Cancel Order</button>` : ''}
+            <button type="button" class="btn btn-outline-navy" data-reorder="${o.id}" style="padding:9px 16px;font-size:12.5px;">Reorder</button>
+            <a href="/account/receipt.html?id=${encodeURIComponent(o.id)}" target="_blank" class="btn btn-outline-navy" style="padding:9px 16px;font-size:12.5px;">Receipt</a>
+          </div>
         </div>`;
     }).join('');
+
+    wrap.querySelectorAll('[data-cancel-order]').forEach(btn => btn.addEventListener('click', () => cancelOrder(btn.dataset.cancelOrder)));
+    wrap.querySelectorAll('[data-reorder]').forEach(btn => btn.addEventListener('click', () => reorderOrder(btn.dataset.reorder)));
+
+    const pager = document.getElementById('ordersPagination');
+    if (totalPages <= 1) { pager.innerHTML = ''; return; }
+    pager.innerHTML = `
+      <button type="button" id="ordersPagePrev" ${ordersPage === 1 ? 'disabled' : ''}>← Prev</button>
+      <span>Page ${ordersPage} of ${totalPages}</span>
+      <button type="button" id="ordersPageNext" ${ordersPage === totalPages ? 'disabled' : ''}>Next →</button>`;
+    document.getElementById('ordersPagePrev').addEventListener('click', () => { ordersPage--; renderOrdersPage(); });
+    document.getElementById('ordersPageNext').addEventListener('click', () => { ordersPage++; renderOrdersPage(); });
+  }
+
+  async function cancelOrder(orderId) {
+    const ok = await confirmDialog('Cancel this order? This cannot be undone — place a new order if you change your mind.', 'Cancel Order');
+    if (!ok) return;
+    const { data, error } = await supabaseClient.from('orders').update({ status: 'cancelled' }).eq('id', orderId).select();
+    if (error) { showToast('Could not cancel: ' + error.message, 'error'); return; }
+    if (!data || !data.length) { showToast('This order can no longer be cancelled — it may already be processing.', 'error'); return; }
+    showToast('Order cancelled.');
+    ORDERS = null; // force a refetch so every tab reflects the new status
+    loaded.inbox = false;
+    loaded.payments = false;
+    await loadOrders();
+  }
+
+  async function reorderOrder(orderId) {
+    const orders = await fetchOrders();
+    const order = orders.find(o => String(o.id) === String(orderId));
+    if (!order || !(order.order_items || []).length) { showToast('No items to reorder.', 'error'); return; }
+
+    let added = 0, unavailable = 0;
+    order.order_items.forEach(item => {
+      const p = item.products;
+      if (!item.product_id || !p || p.is_active === false || p.stock < 1) { unavailable++; return; }
+      addToCart({ id: item.product_id, name: item.product_name, price: p.price != null ? p.price : item.unit_price, image_url: p.image_url }, item.quantity);
+      added++;
+    });
+
+    if (!added) { showToast('None of these items are currently available.', 'error'); return; }
+    showToast(`${added} item${added === 1 ? '' : 's'} added to your cart${unavailable ? ` — ${unavailable} no longer available` : ''}.`);
   }
 
   /* ══════════════════ INBOX ══════════════════ */
@@ -399,20 +499,46 @@
   }
 
   /* ══════════════════ RATINGS & REVIEWS ══════════════════ */
+  let MY_REVIEWS = [];
+  let editingReviewId = null;
+
   async function loadMyReviews() {
-    const wrap = document.getElementById('reviewsWrap');
     const { data, error } = await supabaseClient
       .from('reviews')
       .select('*, products(name)')
       .eq('customer_id', currentUser.id)
       .order('created_at', { ascending: false });
 
-    if (error || !data.length) {
+    MY_REVIEWS = error ? [] : data;
+    renderMyReviews();
+  }
+
+  function renderMyReviews() {
+    const wrap = document.getElementById('reviewsWrap');
+    if (!MY_REVIEWS.length) {
       wrap.innerHTML = `<p style="color:var(--text-muted);font-size:13.5px;">You haven't reviewed any products yet.</p>`;
       return;
     }
 
-    wrap.innerHTML = data.map(r => `
+    wrap.innerHTML = MY_REVIEWS.map(r => {
+      if (editingReviewId === r.id) {
+        return `
+        <div class="review-card">
+          <div class="review-card-head">
+            <div class="review-card-product">${esc(r.products ? r.products.name : 'Product')}</div>
+          </div>
+          <span class="star-rating interactive" id="editStarPicker-${r.id}">
+            ${[1, 2, 3, 4, 5].map(n => `<svg class="${n <= r.rating ? 'filled' : ''}" data-star="${n}"><use href="#ico-star"/></svg>`).join('')}
+          </span>
+          <textarea id="editReviewComment-${r.id}" rows="3" style="width:100%;margin-top:10px;">${esc(r.comment || '')}</textarea>
+          <div style="display:flex;gap:10px;margin-top:10px;">
+            <button type="button" class="btn btn-primary" style="padding:9px 16px;font-size:12.5px;" data-save-review="${r.id}">Save</button>
+            <button type="button" class="btn btn-outline-navy" style="padding:9px 16px;font-size:12.5px;" data-cancel-review-edit="${r.id}">Cancel</button>
+          </div>
+          <p style="font-size:11.5px;color:var(--text-muted);margin-top:8px;">Photos can't be changed here — delete and re-review if you need to swap them.</p>
+        </div>`;
+      }
+      return `
       <div class="review-card">
         <div class="review-card-head">
           <div><div class="review-card-product">${esc(r.products ? r.products.name : 'Product')}</div>${starsHtml(r.rating)}</div>
@@ -420,11 +546,31 @@
         </div>
         ${r.comment ? `<p>${esc(r.comment)}</p>` : ''}
         ${r.image_urls && r.image_urls.length ? `<div class="review-image-gallery">${r.image_urls.map(u => `<img src="${esc(u)}" alt="" loading="lazy" />`).join('')}</div>` : ''}
-        <button type="button" class="checkout-link" style="margin-top:10px;" data-delete-review="${r.id}">Delete</button>
-      </div>`).join('');
+        <div style="display:flex;gap:16px;margin-top:10px;">
+          <button type="button" class="checkout-link" data-edit-review="${r.id}">Edit</button>
+          <button type="button" class="checkout-link" data-delete-review="${r.id}">Delete</button>
+        </div>
+      </div>`;
+    }).join('');
 
+    wrap.querySelectorAll('[data-edit-review]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        editingReviewId = btn.dataset.editReview;
+        renderMyReviews();
+        const r = MY_REVIEWS.find(x => x.id === editingReviewId);
+        setStarPicker(editingReviewId, r.rating);
+      });
+    });
+    wrap.querySelectorAll('[data-cancel-review-edit]').forEach(btn => {
+      btn.addEventListener('click', () => { editingReviewId = null; renderMyReviews(); });
+    });
+    wrap.querySelectorAll('[data-save-review]').forEach(btn => {
+      btn.addEventListener('click', () => saveReviewEdit(btn.dataset.saveReview));
+    });
     wrap.querySelectorAll('[data-delete-review]').forEach(btn => {
       btn.addEventListener('click', async () => {
+        const ok = await confirmDialog('Delete this review? This cannot be undone.');
+        if (!ok) return;
         await supabaseClient.from('reviews').delete().eq('id', btn.dataset.deleteReview);
         loaded.reviews = false;
         loadMyReviews();
@@ -432,24 +578,71 @@
     });
   }
 
+  let editStarValue = 0;
+  function setStarPicker(reviewId, rating) {
+    editStarValue = rating;
+    const picker = document.getElementById('editStarPicker-' + reviewId);
+    if (!picker) return;
+    const paint = () => {
+      picker.querySelectorAll('[data-star]').forEach(b => b.classList.toggle('filled', Number(b.dataset.star) <= editStarValue));
+    };
+    paint();
+    picker.querySelectorAll('[data-star]').forEach(b => {
+      b.addEventListener('click', () => { editStarValue = Number(b.dataset.star); paint(); });
+    });
+  }
+
+  async function saveReviewEdit(reviewId) {
+    const comment = document.getElementById('editReviewComment-' + reviewId).value.trim();
+    const { error } = await supabaseClient.from('reviews').update({ rating: editStarValue, comment }).eq('id', reviewId);
+    if (error) { showToast('Could not save: ' + error.message, 'error'); return; }
+    showToast('Review updated.');
+    editingReviewId = null;
+    loaded.reviews = false;
+    loadMyReviews();
+  }
+
   /* ══════════════════ PAYMENT HISTORY ══════════════════ */
+  const PAYMENTS_PAGE_SIZE = 5;
+  let paymentsPage = 1;
+
   async function loadPayments() {
+    await fetchOrders();
+    renderPaymentsPage();
+  }
+
+  function renderPaymentsPage() {
     const body = document.getElementById('paymentsBody');
-    const orders = await fetchOrders();
+    const orders = ORDERS || [];
 
     if (!orders.length) {
-      body.innerHTML = '<tr><td colspan="5" style="color:var(--text-muted);">No payments yet.</td></tr>';
+      body.innerHTML = '<tr><td colspan="6" style="color:var(--text-muted);">No payments yet.</td></tr>';
+      document.getElementById('paymentsPagination').innerHTML = '';
       return;
     }
 
-    body.innerHTML = orders.map(o => `
+    const totalPages = Math.max(1, Math.ceil(orders.length / PAYMENTS_PAGE_SIZE));
+    paymentsPage = Math.min(paymentsPage, totalPages);
+    const pageOrders = orders.slice((paymentsPage - 1) * PAYMENTS_PAGE_SIZE, paymentsPage * PAYMENTS_PAGE_SIZE);
+
+    body.innerHTML = pageOrders.map(o => `
       <tr>
         <td>${fmtDate(o.created_at)}</td>
         <td style="font-family:var(--font-mono);font-size:12px;">${esc(o.payment_tx_ref || '—')}</td>
         <td>${o.payment_provider === 'cod' ? 'Cash on Delivery' : 'Online'}</td>
         <td class="total">${ugx(o.total)}</td>
         <td><span class="order-status ${esc(o.status)}">${esc(STATUS_LABELS[o.status] || o.status)}</span></td>
+        <td><a href="/account/receipt.html?id=${encodeURIComponent(o.id)}" target="_blank" class="checkout-link">View</a></td>
       </tr>`).join('');
+
+    const pager = document.getElementById('paymentsPagination');
+    if (totalPages <= 1) { pager.innerHTML = ''; return; }
+    pager.innerHTML = `
+      <button type="button" id="paymentsPagePrev" ${paymentsPage === 1 ? 'disabled' : ''}>← Prev</button>
+      <span>Page ${paymentsPage} of ${totalPages}</span>
+      <button type="button" id="paymentsPageNext" ${paymentsPage === totalPages ? 'disabled' : ''}>Next →</button>`;
+    document.getElementById('paymentsPagePrev').addEventListener('click', () => { paymentsPage--; renderPaymentsPage(); });
+    document.getElementById('paymentsPageNext').addEventListener('click', () => { paymentsPage++; renderPaymentsPage(); });
   }
 
   /* ══════════════════ ADDRESS BOOK ══════════════════ */
@@ -468,9 +661,12 @@
           </div>
           <div class="address-card-actions">
             ${a.is_default ? '' : `<button type="button" class="checkout-link" data-make-default="${a.id}">Make default</button>`}
+            <button type="button" class="checkout-link" data-edit-address="${a.id}">Edit</button>
             <button type="button" class="checkout-link" data-delete-address="${a.id}">Delete</button>
           </div>
         </div>`).join('');
+
+      ADDRESSES = data;
 
       wrap.querySelectorAll('[data-make-default]').forEach(btn => {
         btn.addEventListener('click', async () => {
@@ -480,8 +676,16 @@
           loadAddresses();
         });
       });
+      wrap.querySelectorAll('[data-edit-address]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const a = ADDRESSES.find(x => x.id === btn.dataset.editAddress);
+          if (a) openAddressForm(a);
+        });
+      });
       wrap.querySelectorAll('[data-delete-address]').forEach(btn => {
         btn.addEventListener('click', async () => {
+          const ok = await confirmDialog('Delete this address?');
+          if (!ok) return;
           await supabaseClient.from('addresses').delete().eq('id', btn.dataset.deleteAddress);
           loaded.addresses = false;
           loadAddresses();
@@ -491,24 +695,39 @@
   }
 
   let addrPickedLocation = null;
+  let editingAddressId = null;
+  let ADDRESSES = [];
 
-  document.getElementById('addAddressBtn').addEventListener('click', () => {
+  function openAddressForm(address) {
+    editingAddressId = address ? address.id : null;
     document.getElementById('addressForm').style.display = 'block';
     document.getElementById('addAddressBtn').style.display = 'none';
-    addrPickedLocation = null;
+    document.getElementById('addressSaveBtn').textContent = address ? 'Save Changes' : 'Save Address';
+    addrPickedLocation = address && address.lat != null ? { lat: address.lat, lng: address.lng } : null;
+
+    document.getElementById('addrLabel').value = address ? (address.label || '') : '';
+    document.getElementById('addrDefault').checked = address ? !!address.is_default : false;
     const addrTextEl = document.getElementById('addrText');
+    addrTextEl.value = address ? address.address_text : '';
     addrTextEl.addEventListener('input', () => { addrPickedLocation = null; });
+
     initAddressMap({
       containerEl: document.getElementById('addrMap'),
       searchInputEl: addrTextEl,
+      initialAddress: address ? address.address_text : undefined,
+      initialLat: address ? address.lat : undefined,
+      initialLng: address ? address.lng : undefined,
       onChange: ({ lat, lng }) => { addrPickedLocation = { lat, lng }; },
     });
-  });
+  }
+
+  document.getElementById('addAddressBtn').addEventListener('click', () => openAddressForm(null));
   document.getElementById('addressCancelBtn').addEventListener('click', () => {
     document.getElementById('addressForm').style.display = 'none';
     document.getElementById('addAddressBtn').style.display = 'inline-flex';
     document.getElementById('addressForm').reset();
     addrPickedLocation = null;
+    editingAddressId = null;
   });
   document.getElementById('addressForm').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -522,17 +741,20 @@
     if (isDefault) {
       await supabaseClient.from('addresses').update({ is_default: false }).eq('customer_id', currentUser.id);
     }
-    const { error } = await supabaseClient.from('addresses').insert({
-      customer_id: currentUser.id,
+    const payload = {
       label: document.getElementById('addrLabel').value.trim() || null,
       address_text: document.getElementById('addrText').value.trim(),
       lat: addrPickedLocation ? addrPickedLocation.lat : null,
       lng: addrPickedLocation ? addrPickedLocation.lng : null,
       is_default: isDefault,
-    });
+    };
+
+    const { error } = editingAddressId
+      ? await supabaseClient.from('addresses').update(payload).eq('id', editingAddressId)
+      : await supabaseClient.from('addresses').insert({ ...payload, customer_id: currentUser.id });
 
     btn.disabled = false;
-    btn.textContent = 'Save Address';
+    btn.textContent = editingAddressId ? 'Save Changes' : 'Save Address';
 
     if (error) {
       errorBox.textContent = error.message;
@@ -542,6 +764,7 @@
     document.getElementById('addressForm').reset();
     document.getElementById('addressForm').style.display = 'none';
     document.getElementById('addAddressBtn').style.display = 'inline-flex';
+    editingAddressId = null;
     loaded.addresses = false;
     loadAddresses();
   });

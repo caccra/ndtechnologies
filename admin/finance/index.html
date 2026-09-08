@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Finance — Admin — ND Electronic Technologies Ltd</title>
+<meta name="robots" content="noindex, nofollow" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Poppins:wght@500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/assets/styles.css" />
+<link rel="stylesheet" href="/assets/admin.css" />
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+<div class="admin-shell">
+  <div class="admin-sidebar">
+    <a href="/" class="brand" id="navBrand"></a>
+    <div class="admin-sidebar-tag">Admin Panel</div>
+    <div class="admin-global-search" id="globalSearchBox">
+      <svg><use href="#ico-search"/></svg>
+      <input type="text" id="globalSearchInput" placeholder="Search everything…" autocomplete="off" />
+      <div id="globalSearchResults"></div>
+    </div>
+    <div class="admin-nav">
+      <a href="/admin/"><svg><use href="#ico-dashboard"/></svg><span>Dashboard</span></a>
+      <a href="/admin/products/"><svg><use href="#ico-box"/></svg><span>Products</span></a>
+      <a href="/admin/coupons/"><svg><use href="#ico-tag"/></svg><span>Coupons</span></a>
+      <a href="/admin/orders/"><svg><use href="#ico-cash"/></svg><span>Orders</span></a>
+      <a href="/admin/leads/"><svg><use href="#ico-mail"/></svg><span>Leads</span></a>
+      <a href="/admin/reviews/"><svg><use href="#ico-star"/></svg><span>Reviews</span></a>
+      <a href="/admin/finance/" class="active"><svg><use href="#ico-chart"/></svg><span>Finance</span></a>
+      <a href="/admin/customers/"><svg><use href="#ico-user"/></svg><span>Customers</span></a>
+    </div>
+    <div class="admin-sidebar-foot">
+      <div class="admin-sidebar-user" id="userEmail"></div>
+      <button id="signOutBtn" class="btn btn-outline-dark" style="padding:8px 16px;font-size:12.5px;">Sign Out</button>
+    </div>
+  </div>
+  <div class="admin-main">
+    <div class="admin-head">
+      <div>
+        <h1>Finance</h1>
+        <p>Revenue actually collected — Cash on Delivery counts once fulfilled, online payments once verified paid.</p>
+      </div>
+    </div>
+
+    <div class="admin-stats-grid" id="statsGrid">
+      <div class="admin-stat-card" id="cardTotal" style="cursor:default;">
+        <div class="admin-stat-num">—</div>
+        <div class="admin-stat-label">Total Revenue</div>
+      </div>
+      <div class="admin-stat-card" id="cardCod" style="cursor:default;">
+        <div class="admin-stat-num">—</div>
+        <div class="admin-stat-label">Cash on Delivery</div>
+      </div>
+      <div class="admin-stat-card" id="cardOnline" style="cursor:default;">
+        <div class="admin-stat-num">—</div>
+        <div class="admin-stat-label">Online Payments</div>
+      </div>
+      <div class="admin-stat-card" id="cardMonth" style="cursor:default;">
+        <div class="admin-stat-num">—</div>
+        <div class="admin-stat-label">This Month</div>
+      </div>
+      <div class="admin-stat-card" id="cardRefunded" style="cursor:default;">
+        <div class="admin-stat-num">—</div>
+        <div class="admin-stat-label">Refunded</div>
+      </div>
+    </div>
+
+    <div class="admin-panel" style="margin-bottom:24px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px;flex-wrap:wrap;">
+        <h2 style="margin-bottom:0;">Sales on a Specific Day</h2>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <input type="date" id="lookupDate" class="admin-date-input" />
+          <button type="button" class="admin-export-btn" id="exportDayBtn"><svg><use href="#ico-download"/></svg>Export CSV</button>
+        </div>
+      </div>
+      <div class="admin-stats-grid" id="dayStatsGrid" style="margin-bottom:20px;">
+        <div class="admin-stat-card" style="cursor:default;">
+          <div class="admin-stat-num" id="dayOrders">—</div>
+          <div class="admin-stat-label">Orders</div>
+        </div>
+        <div class="admin-stat-card" style="cursor:default;">
+          <div class="admin-stat-num" id="dayCod">—</div>
+          <div class="admin-stat-label">Cash on Delivery</div>
+        </div>
+        <div class="admin-stat-card" style="cursor:default;">
+          <div class="admin-stat-num" id="dayOnline">—</div>
+          <div class="admin-stat-label">Online</div>
+        </div>
+        <div class="admin-stat-card" style="cursor:default;">
+          <div class="admin-stat-num" id="dayTotal">—</div>
+          <div class="admin-stat-label">Total</div>
+        </div>
+      </div>
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr><th>Time</th><th>Customer</th><th>Phone</th><th>Payment</th><th>Amount</th></tr>
+          </thead>
+          <tbody id="dayBody"></tbody>
+        </table>
+        <div class="admin-empty" id="dayEmpty" style="display:none;">No paid orders on this day.</div>
+      </div>
+    </div>
+
+    <div class="admin-filter-tabs" id="periodTabs">
+      <button class="admin-filter-tab" data-period="day">Daily</button>
+      <button class="admin-filter-tab" data-period="week">Weekly</button>
+      <button class="admin-filter-tab active" data-period="month">Monthly</button>
+      <button class="admin-filter-tab" data-period="quarter">Quarterly</button>
+      <button class="admin-filter-tab" data-period="year">Annual</button>
+    </div>
+
+    <div class="admin-panel" style="margin-bottom:24px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px;flex-wrap:wrap;">
+        <h2 style="margin-bottom:0;">Revenue Over Time</h2>
+        <button type="button" class="admin-export-btn" id="exportPeriodBtn"><svg><use href="#ico-download"/></svg>Export CSV</button>
+      </div>
+      <div class="admin-chart-legend"><span><i style="background:#0a1628;"></i>Cash on Delivery</span><span><i style="background:#00b4d8;"></i>Online</span></div>
+      <div class="admin-chart-wrap"><canvas id="revenueChart" height="220"></canvas></div>
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr><th>Period</th><th>Orders</th><th>Cash on Delivery</th><th>Online</th><th>Total</th></tr>
+          </thead>
+          <tbody id="periodBody"></tbody>
+        </table>
+        <div class="admin-empty" id="periodEmpty" style="display:none;">No paid orders yet.</div>
+      </div>
+    </div>
+
+    <div class="admin-panel">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px;flex-wrap:wrap;">
+        <h2 style="margin-bottom:0;">Revenue by Customer</h2>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <input type="search" id="customerSearch" class="admin-search-input" placeholder="Search customer or phone…" style="min-width:200px;" />
+          <button type="button" class="admin-export-btn" id="exportCustomerBtn" style="margin-left:0;"><svg><use href="#ico-download"/></svg>Export CSV</button>
+        </div>
+      </div>
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr><th>Customer</th><th>Phone</th><th>Orders Paid</th><th>Cash on Delivery</th><th>Online</th><th>Total Paid</th></tr>
+          </thead>
+          <tbody id="customerBody"></tbody>
+        </table>
+        <div class="admin-empty" id="customerEmpty" style="display:none;">No paid orders yet.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/assets/supabase-config.js"></script>
+<script src="/assets/admin.js"></script>
+<script>initGlobalSearch(supabaseClient);</script>
+<script>
+  (async function guard() {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) { window.location.href = '/admin/login/'; return; }
+    const { data: profile } = await supabaseClient.from('profiles').select('is_admin, role').eq('id', session.user.id).maybeSingle();
+    if (!profile || !profile.is_admin) {
+      await supabaseClient.auth.signOut();
+      window.location.href = '/admin/login/';
+      return;
+    }
+    document.getElementById('userEmail').textContent = session.user.email;
+    // Owner-only page. This is a UI gate, not a security boundary — RLS lets
+    // any admin read the same `orders` rows Staff legitimately needs for the
+    // Orders page, so a determined Staff user could still query Supabase
+    // directly. It exists to keep financial reports off Staff screens by
+    // default, not to cryptographically wall them off.
+    if (profile.role !== 'owner') {
+      document.querySelector('.admin-main').innerHTML = `
+        <div class="admin-empty" style="display:block;padding:70px 20px;text-align:center;">
+          <h2 style="margin-bottom:8px;">Owner access only</h2>
+          <p style="color:var(--text-muted);max-width:420px;margin:0 auto;">Financial reports are restricted to the business owner account. Ask the owner if you need this data.</p>
+        </div>`;
+      return;
+    }
+    loadFinance();
+  })();
+
+  document.getElementById('signOutBtn').addEventListener('click', async () => {
+    await supabaseClient.auth.signOut();
+    window.location.href = '/admin/login/';
+  });
+
+  function ugx(n) { return 'UGX ' + Number(n).toLocaleString('en-UG'); }
+  function normalizePhone(raw) { return String(raw || '').replace(/[\s-]/g, ''); }
+
+  // A COD order's cash only actually changes hands at delivery — count it
+  // once it's fulfilled. An online order is confirmed paid the moment
+  // verify-payment flips it to "paid" (or any status after that, since the
+  // admin can only move a *paid* order further along the pipeline).
+  function isPaid(o) {
+    if (o.payment_provider === 'cod') return o.status === 'fulfilled';
+    return ['paid', 'in_progress', 'dispatched', 'fulfilled'].includes(o.status);
+  }
+
+  // Revenue figures net out any recorded refund — a refunded order still
+  // counts as "paid" for status purposes, but shouldn't inflate revenue.
+  function net(o) { return Number(o.total) - Number(o.refunded_amount || 0); }
+
+  let PAID_ORDERS = [];
+  let periodGranularity = 'month';
+
+  async function loadFinance() {
+    const { data, error } = await supabaseClient
+      .from('orders')
+      .select('customer_name, customer_phone, total, refunded_amount, payment_provider, status, created_at')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error(error);
+      showToast('Could not load orders: ' + error.message, 'error');
+      ['dayEmpty', 'periodEmpty', 'customerEmpty'].forEach(id => {
+        const el = document.getElementById(id);
+        el.textContent = 'Could not load orders: ' + error.message;
+        el.style.display = 'block';
+      });
+      return;
+    }
+    PAID_ORDERS = (data || []).filter(isPaid);
+    renderSummary();
+    renderDayLookup();
+    renderPeriodTable();
+    renderCustomerTable();
+  }
+
+  function dayOrders() {
+    const day = document.getElementById('lookupDate').value; // YYYY-MM-DD
+    if (!day) return [];
+    return PAID_ORDERS.filter(o => new Date(o.created_at).toLocaleDateString('en-CA') === day);
+  }
+
+  function renderDayLookup() {
+    const rows = dayOrders();
+    const cod = rows.filter(o => o.payment_provider === 'cod').reduce((s, o) => s + net(o), 0);
+    const online = rows.reduce((s, o) => s + net(o), 0) - cod;
+
+    document.getElementById('dayOrders').textContent = rows.length;
+    document.getElementById('dayCod').textContent = ugx(cod);
+    document.getElementById('dayOnline').textContent = ugx(online);
+    document.getElementById('dayTotal').textContent = ugx(cod + online);
+
+    const body = document.getElementById('dayBody');
+    const empty = document.getElementById('dayEmpty');
+    body.innerHTML = '';
+    if (!rows.length) { empty.style.display = 'block'; return; }
+    empty.style.display = 'none';
+
+    rows
+      .slice()
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+      .forEach(o => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${new Date(o.created_at).toLocaleTimeString('en-UG', { hour: 'numeric', minute: '2-digit' })}</td>
+          <td>${o.customer_name}</td>
+          <td><a href="tel:${o.customer_phone}">${o.customer_phone}</a></td>
+          <td><span class="admin-status-pill ${o.payment_provider === 'cod' ? 'off' : 'on'}">${o.payment_provider === 'cod' ? 'Cash on Delivery' : 'Online'}</span></td>
+          <td class="total">${ugx(net(o))}${o.refunded_amount > 0 ? ` <span style="color:var(--text-muted);font-weight:500;">(−${ugx(o.refunded_amount)} refunded)</span>` : ''}</td>`;
+        body.appendChild(tr);
+      });
+  }
+
+  function renderSummary() {
+    const total = PAID_ORDERS.reduce((s, o) => s + net(o), 0);
+    const cod = PAID_ORDERS.filter(o => o.payment_provider === 'cod').reduce((s, o) => s + net(o), 0);
+    const online = total - cod;
+    const refunded = PAID_ORDERS.reduce((s, o) => s + Number(o.refunded_amount || 0), 0);
+
+    const monthStart = new Date();
+    monthStart.setDate(1);
+    monthStart.setHours(0, 0, 0, 0);
+    const thisMonth = PAID_ORDERS
+      .filter(o => new Date(o.created_at) >= monthStart)
+      .reduce((s, o) => s + net(o), 0);
+
+    document.querySelector('#cardTotal .admin-stat-num').textContent = ugx(total);
+    document.querySelector('#cardCod .admin-stat-num').textContent = ugx(cod);
+    document.querySelector('#cardOnline .admin-stat-num').textContent = ugx(online);
+    document.querySelector('#cardMonth .admin-stat-num').textContent = ugx(thisMonth);
+    document.querySelector('#cardRefunded .admin-stat-num').textContent = ugx(refunded);
+  }
+
+  // Returns { key, label } — key sorts correctly as a string, label is what's shown.
+  function periodOf(dateStr, granularity) {
+    const d = new Date(dateStr);
+    const y = d.getFullYear();
+
+    if (granularity === 'day') {
+      const key = d.toLocaleDateString('en-CA'); // YYYY-MM-DD, local time (not UTC)
+      const label = d.toLocaleDateString('en-UG', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+      return { key, label };
+    }
+    if (granularity === 'week') {
+      const start = new Date(d);
+      const dow = (start.getDay() + 6) % 7; // Monday = 0 .. Sunday = 6
+      start.setDate(start.getDate() - dow);
+      const end = new Date(start);
+      end.setDate(end.getDate() + 6);
+      const fmt = (dt) => dt.toLocaleDateString('en-UG', { month: 'short', day: 'numeric' });
+      return { key: start.toLocaleDateString('en-CA'), label: `${fmt(start)} – ${fmt(end)}, ${end.getFullYear()}` };
+    }
+    if (granularity === 'year') return { key: `${y}`, label: `${y}` };
+    if (granularity === 'quarter') {
+      const q = Math.floor(d.getMonth() / 3) + 1;
+      return { key: `${y}-Q${q}`, label: `Q${q} ${y}` };
+    }
+    // month
+    const m = d.getMonth();
+    const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    return { key: `${y}-${String(m + 1).padStart(2, '0')}`, label: `${MONTHS[m]} ${y}` };
+  }
+
+  function periodBuckets() {
+    const map = new Map();
+    PAID_ORDERS.forEach(o => {
+      const { key, label } = periodOf(o.created_at, periodGranularity);
+      if (!map.has(key)) map.set(key, { label, orders: 0, cod: 0, online: 0 });
+      const b = map.get(key);
+      b.orders += 1;
+      if (o.payment_provider === 'cod') b.cod += net(o);
+      else b.online += net(o);
+    });
+    return Array.from(map.entries()).sort((a, b) => b[0].localeCompare(a[0])).map(([, v]) => v);
+  }
+
+  function drawRevenueChart(buckets) {
+    const canvas = document.getElementById('revenueChart');
+    const wrap = canvas.parentElement;
+    const dpr = window.devicePixelRatio || 1;
+    const cssW = wrap.clientWidth;
+    const cssH = 220;
+    canvas.width = cssW * dpr;
+    canvas.height = cssH * dpr;
+    canvas.style.height = cssH + 'px';
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cssW, cssH);
+
+    if (!buckets.length) return;
+    // Table rows are newest-first; the chart reads left-to-right chronologically.
+    const chron = buckets.slice().reverse().slice(-14); // cap to the most recent 14 periods so bars stay readable
+    const padL = 8, padR = 8, padT = 10, padB = 28;
+    const chartW = cssW - padL - padR;
+    const chartH = cssH - padT - padB;
+    const maxVal = Math.max(1, ...chron.map(b => b.cod + b.online));
+    const n = chron.length;
+    const groupW = chartW / n;
+    const barW = Math.min(34, groupW * 0.6);
+
+    // gridlines
+    ctx.strokeStyle = '#D7DFE9';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 3; i++) {
+      const y = padT + chartH - (chartH * i / 3);
+      ctx.beginPath();
+      ctx.moveTo(padL, y);
+      ctx.lineTo(padL + chartW, y);
+      ctx.stroke();
+    }
+
+    ctx.font = '10.5px Jost, sans-serif';
+    ctx.fillStyle = '#788492';
+    ctx.textAlign = 'center';
+
+    chron.forEach((b, i) => {
+      const cx = padL + groupW * i + groupW / 2;
+      const codH = (b.cod / maxVal) * chartH;
+      const onlineH = (b.online / maxVal) * chartH;
+      const baseY = padT + chartH;
+
+      ctx.fillStyle = '#0a1628';
+      ctx.fillRect(cx - barW / 2, baseY - codH, barW / 2, codH);
+      ctx.fillStyle = '#00b4d8';
+      ctx.fillRect(cx, baseY - onlineH, barW / 2, onlineH);
+
+      ctx.fillStyle = '#788492';
+      const short = periodGranularity === 'day' || periodGranularity === 'week' ? b.label.split(',')[0] : b.label.split(' ')[0];
+      ctx.fillText(short, cx, cssH - 8);
+    });
+  }
+
+  function renderPeriodTable() {
+    const body = document.getElementById('periodBody');
+    const empty = document.getElementById('periodEmpty');
+    const buckets = periodBuckets();
+    drawRevenueChart(buckets);
+    body.innerHTML = '';
+    if (!buckets.length) { empty.style.display = 'block'; return; }
+    empty.style.display = 'none';
+
+    buckets.forEach(b => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${b.label}</td>
+        <td>${b.orders}</td>
+        <td>${ugx(b.cod)}</td>
+        <td>${ugx(b.online)}</td>
+        <td class="total">${ugx(b.cod + b.online)}</td>`;
+      body.appendChild(tr);
+    });
+  }
+
+  function customerRows() {
+    const q = document.getElementById('customerSearch').value.trim().toLowerCase();
+    const byPhone = new Map();
+    PAID_ORDERS.forEach(o => {
+      const key = normalizePhone(o.customer_phone) || o.customer_name;
+      if (!byPhone.has(key)) byPhone.set(key, { name: o.customer_name, phone: o.customer_phone, orders: 0, cod: 0, online: 0 });
+      const c = byPhone.get(key);
+      c.orders += 1;
+      if (o.payment_provider === 'cod') c.cod += net(o);
+      else c.online += net(o);
+    });
+    const rows = Array.from(byPhone.values()).sort((a, b) => (b.cod + b.online) - (a.cod + a.online));
+    return rows.filter(c => !q || [c.name, c.phone].some(v => (v || '').toLowerCase().includes(q)));
+  }
+
+  function renderCustomerTable() {
+    const body = document.getElementById('customerBody');
+    const empty = document.getElementById('customerEmpty');
+    const rows = customerRows();
+    body.innerHTML = '';
+    if (!rows.length) { empty.style.display = 'block'; return; }
+    empty.style.display = 'none';
+
+    rows.forEach(c => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${c.name}</td>
+        <td><a href="tel:${c.phone}">${c.phone}</a></td>
+        <td>${c.orders}</td>
+        <td>${ugx(c.cod)}</td>
+        <td>${ugx(c.online)}</td>
+        <td class="total">${ugx(c.cod + c.online)}</td>`;
+      body.appendChild(tr);
+    });
+  }
+
+  document.getElementById('lookupDate').value = new Date().toLocaleDateString('en-CA');
+  document.getElementById('lookupDate').addEventListener('change', renderDayLookup);
+
+  document.getElementById('exportDayBtn').addEventListener('click', () => {
+    const rows = dayOrders();
+    if (!rows.length) { showToast('Nothing to export.', 'error'); return; }
+    const day = document.getElementById('lookupDate').value;
+    exportCsv(`sales-${day}.csv`, rows, [
+      { label: 'Time', value: o => new Date(o.created_at).toLocaleTimeString('en-UG', { hour: 'numeric', minute: '2-digit' }) },
+      { label: 'Customer', value: o => o.customer_name },
+      { label: 'Phone', value: o => o.customer_phone },
+      { label: 'Payment', value: o => o.payment_provider === 'cod' ? 'Cash on Delivery' : 'Online' },
+      { label: 'Amount (UGX)', value: o => net(o) },
+      { label: 'Refunded (UGX)', value: o => o.refunded_amount || 0 },
+    ]);
+    showToast(`Exported ${rows.length} order${rows.length === 1 ? '' : 's'} for ${day}.`);
+  });
+
+  document.getElementById('periodTabs').addEventListener('click', (e) => {
+    const btn = e.target.closest('.admin-filter-tab');
+    if (!btn) return;
+    periodGranularity = btn.dataset.period;
+    document.querySelectorAll('#periodTabs .admin-filter-tab').forEach(b => b.classList.toggle('active', b === btn));
+    renderPeriodTable();
+  });
+
+  document.getElementById('customerSearch').addEventListener('input', renderCustomerTable);
+
+  document.getElementById('exportPeriodBtn').addEventListener('click', () => {
+    const buckets = periodBuckets();
+    if (!buckets.length) { showToast('Nothing to export.', 'error'); return; }
+    exportCsv('revenue-by-period.csv', buckets, [
+      { label: 'Period', value: b => b.label },
+      { label: 'Orders', value: b => b.orders },
+      { label: 'Cash on Delivery (UGX)', value: b => b.cod },
+      { label: 'Online (UGX)', value: b => b.online },
+      { label: 'Total (UGX)', value: b => b.cod + b.online },
+    ]);
+    showToast(`Exported ${buckets.length} period${buckets.length === 1 ? '' : 's'}.`);
+  });
+
+  document.getElementById('exportCustomerBtn').addEventListener('click', () => {
+    const rows = customerRows();
+    if (!rows.length) { showToast('Nothing to export.', 'error'); return; }
+    exportCsv('revenue-by-customer.csv', rows, [
+      { label: 'Customer', value: c => c.name },
+      { label: 'Phone', value: c => c.phone },
+      { label: 'Orders Paid', value: c => c.orders },
+      { label: 'Cash on Delivery (UGX)', value: c => c.cod },
+      { label: 'Online (UGX)', value: c => c.online },
+      { label: 'Total Paid (UGX)', value: c => c.cod + c.online },
+    ]);
+    showToast(`Exported ${rows.length} customer${rows.length === 1 ? '' : 's'}.`);
+  });
+</script>
+<script src="/assets/script.js" defer></script>
+</body>
+</html>

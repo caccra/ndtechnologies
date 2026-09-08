@@ -24,11 +24,22 @@
 <meta name="twitter:description" content="Request a free site survey from ND Electronic Technologies Ltd. Based in Lukuli, Nanganda, serving Kampala and surrounding areas. Call 0704 399665 / 0773 270782." />
 <meta name="twitter:image" content="https://ndelectronictechnologies.com/assets/images/nd-logo-clean.jpg" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Poppins:wght@500;600;700&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/assets/styles.css" />
 </head>
 <body data-page="contact">
 
+<div class="topbar">
+  <div class="topbar-right-bg"></div>
+  <div class="topbar-inner">
+    <div class="topbar-left">
+      <a href="tel:+256704399665"><svg><use href="#ico-phone"/></svg> 0704 399665 / 0773 270782</a>
+      <a href="mailto:info@ndelectronictechnologies.com"><svg><use href="#ico-mail"/></svg> info@ndelectronictechnologies.com / ndtechnologiesltd@gmail.com</a>
+    </div>
+    <div class="topbar-right"><svg><use href="#ico-clock"/></svg> Mon &ndash; Sat 8:00am &ndash; 7:00pm</div>
+  </div>
+</div>
 <nav id="navbar">
   <a href="/" class="brand" id="navBrand"></a>
   <ul class="nav-links">
@@ -79,7 +90,7 @@
           <div class="contact-items">
             <div class="contact-item">
               <div class="ci-icon"><svg><use href="#ico-pin"/></svg></div>
-              <div class="ci-text"><strong>Address</strong><span>BNK Building, Level 2, Lukuli-Nanganda Road, Kampala - Uganda</span></div>
+              <div class="ci-text"><strong>Address</strong><span>BNK Building, 2nd Floor, Lukuli-Nanganda Road, Kampala - Uganda</span></div>
             </div>
             <div class="contact-item">
               <div class="ci-icon"><svg><use href="#ico-phone"/></svg></div>
@@ -107,23 +118,29 @@
           <div class="hours-row"><span>Monday – Saturday</span><span>8:00am – 7:00pm</span></div>
           <div class="hours-row"><span>Sunday</span><span>Closed</span></div>
         </div>
+        <div class="reveal" style="margin-top:20px;border-radius:var(--radius-lg);overflow:hidden;border:1.5px solid var(--line);">
+          <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3989.771412451209!2d32.6013482!3d0.2778334!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x177dbdba990acd31%3A0x883b3879541bbbe4!2sND%20ELECTRONIC%20TECHNOLOGIES!5e0!3m2!1sen!2sug!4v1788718426419!5m2!1sen!2sug"
+            width="100%" height="230" style="border:0;display:block;" loading="lazy"
+            referrerpolicy="strict-origin-when-cross-origin" title="Map showing ND Electronic Technologies Ltd's location" allowfullscreen></iframe>
+        </div>
       </div>
 
       <div class="contact-form-wrap reveal">
         <h3>Request a Site Survey</h3>
         <p>Fill in the form and we'll contact you to schedule a free visit.</p>
-        <form id="contactForm" onsubmit="return false;">
+        <form id="contactForm">
+          <div class="admin-error" id="contactFormError" style="display:none;background:#FCE8E4;color:#B0301A;border-radius:var(--radius);padding:11px 14px;font-size:13px;margin-bottom:16px;"></div>
           <div class="form-row">
-            <div class="form-group"><label>First Name *</label><input type="text" placeholder="e.g. Grace" required /></div>
-            <div class="form-group"><label>Last Name *</label><input type="text" placeholder="e.g. Nakato" required /></div>
+            <div class="form-group"><label>First Name *</label><input type="text" id="leadFirstName" placeholder="e.g. Grace" required /></div>
+            <div class="form-group"><label>Last Name *</label><input type="text" id="leadLastName" placeholder="e.g. Nakato" required /></div>
           </div>
           <div class="form-row">
-            <div class="form-group"><label>Phone Number *</label><input type="tel" placeholder="+256 7__ ___ ___" required /></div>
-            <div class="form-group"><label>Email Address</label><input type="email" placeholder="you@company.com" /></div>
+            <div class="form-group"><label>Phone Number *</label><input type="tel" id="leadPhone" placeholder="+256 7__ ___ ___" required /></div>
+            <div class="form-group"><label>Email Address</label><input type="email" id="leadEmail" placeholder="you@company.com" /></div>
           </div>
           <div class="form-group">
             <label>System(s) You're Interested In *</label>
-            <select name="service" required>
+            <select name="service" id="leadService" required>
               <option value="">Select a system...</option>
               <option value="CCTV Cameras">CCTV Cameras</option>
               <option value="Solar Power &amp; Renewable Energy">Solar Power &amp; Renewable Energy</option>
@@ -140,8 +157,8 @@
               <option value="Multiple Systems / Not Sure Yet">Multiple Systems / Not Sure Yet</option>
             </select>
           </div>
-          <div class="form-group"><label>Property Location *</label><input type="text" placeholder="Area / landmark, e.g. Ntinda, Kampala" required /></div>
-          <div class="form-group"><label>Message</label><textarea placeholder="Tell us a bit about your property and what you need..."></textarea></div>
+          <div class="form-group"><label>Property Location *</label><input type="text" id="leadLocation" placeholder="Area / landmark, e.g. Ntinda, Kampala" required /></div>
+          <div class="form-group"><label>Message</label><textarea id="leadMessage" placeholder="Tell us a bit about your property and what you need..."></textarea></div>
           <button type="submit" class="btn btn-navy form-submit">Send Request →</button>
           <div class="form-success" id="formSuccess">Thank you — your request has been received. We'll contact you shortly to arrange a site visit.</div>
         </form>
@@ -189,8 +206,10 @@
       <a href="/" class="footer-brand" id="footerBrand"></a>
       <p>Integrated CCTV, solar power, carports, fire suppression, networking, connectivity, air conditioning and electrical engineering — installed and supported by one local team based in Lukuli, Nanganda.</p>
       <div class="social-links">
-        <a href="https://www.facebook.com/cctvcamerass/" class="social-link" target="_blank" rel="noopener" aria-label="Facebook"><svg><use href="#ico-facebook"/></svg></a>
-        <a href="https://www.tiktok.com/@ndelectrictechnologies" class="social-link" target="_blank" rel="noopener" aria-label="TikTok"><svg><use href="#ico-tiktok"/></svg></a>
+        <a href="https://wa.me/256704399665" class="social-link social-whatsapp" target="_blank" rel="noopener" aria-label="WhatsApp"><svg><use href="#ico-whatsapp"/></svg></a>
+        <a href="https://www.facebook.com/cctvcamerass/" class="social-link social-facebook" target="_blank" rel="noopener" aria-label="Facebook"><svg><use href="#ico-facebook"/></svg></a>
+        <a href="https://www.tiktok.com/@ndelectrictechnologies" class="social-link social-tiktok" target="_blank" rel="noopener" aria-label="TikTok"><svg><use href="#ico-tiktok"/></svg></a>
+        <a href="https://www.instagram.com/carports_uganda_ltd/" class="social-link social-instagram" target="_blank" rel="noopener" aria-label="Instagram"><svg><use href="#ico-instagram"/></svg></a>
       </div>
     </div>
     <div class="footer-col services-footer-col">
@@ -213,9 +232,9 @@
     <div class="footer-col">
       <h4>Contact</h4>
       <ul>
-        <li><a href="tel:+256704399665">0704 399665</a><a href="tel:+256773270782">0773 270782</a></li>
+        <li><a href="tel:+256704399665" class="footer-phone">0704 399665</a><a href="tel:+256773270782" class="footer-phone">0773 270782</a></li>
         <li><a href="mailto:info@ndelectronictechnologies.com">info@ndelectronictechnologies.com</a><a href="mailto:sales@ndelectronictechnologies.com">sales@ndelectronictechnologies.com</a><a href="mailto:ndtechnologiesltd@gmail.com">ndtechnologiesltd@gmail.com</a></li>
-        <li><a href="/contact/">BNK Building, Level 2, Lukuli-Nanganda Road, Kampala - Uganda</a></li>
+        <li><a href="/contact/">BNK Building, 2nd Floor, Lukuli-Nanganda Road, Kampala - Uganda</a></li>
       </ul>
     </div>
   </div>
@@ -238,13 +257,14 @@
   "email": "info@ndelectronictechnologies.com",
   "priceRange": "$$",
   "address": { "@type": "PostalAddress", "streetAddress": "BNK Building, 2nd Floor, Lukuli–Nanganda Road", "addressLocality": "Kampala", "addressRegion": "Makindye Division", "addressCountry": "UG" },
+  "geo": { "@type": "GeoCoordinates", "latitude": 0.2778334, "longitude": 32.6013482 },
   "openingHoursSpecification": [
     { "@type": "OpeningHoursSpecification", "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"], "opens": "08:00", "closes": "19:00" }
   ],
   "areaServed": [
     { "@type": "City", "name": "Kampala" }, { "@type": "City", "name": "Makindye" }, { "@type": "City", "name": "Wakiso" }, { "@type": "City", "name": "Mukono" }, { "@type": "City", "name": "Entebbe" }
   ],
-  "sameAs": ["https://www.facebook.com/cctvcamerass/", "https://www.tiktok.com/@ndelectrictechnologies"]
+  "sameAs": ["https://www.facebook.com/cctvcamerass/", "https://www.tiktok.com/@ndelectrictechnologies", "https://www.instagram.com/carports_uganda_ltd/"]
 }
 </script>
 <script type="application/ld+json">
@@ -294,6 +314,8 @@
   <svg><use href="#ico-whatsapp"/></svg>
 </a>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="/assets/supabase-config.js"></script>
 <script src="/assets/script.js" defer></script>
 <script src="/assets/cart.js" defer></script>
 </body>

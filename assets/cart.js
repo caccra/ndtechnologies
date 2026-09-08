@@ -10,11 +10,16 @@ function getCart() {
 function saveCart(cart) {
   localStorage.setItem(CART_KEY, JSON.stringify(cart));
   updateCartBadge();
+  syncCartToServer(cart);
 }
 
 function addToCart(product, qty) {
   qty = qty || 1;
   const cart = getCart();
+  // A sale price, when set, IS the price for every purpose downstream
+  // (cart totals, checkout, order_items) — store it once here rather than
+  // re-deriving "which price is active" at every call site.
+  const effectivePrice = product.sale_price != null ? product.sale_price : product.price;
   const existing = cart.find(item => item.id === product.id);
   if (existing) {
     existing.qty += qty;
@@ -22,12 +27,76 @@ function addToCart(product, qty) {
     cart.push({
       id: product.id,
       name: product.name,
-      price: product.price,
+      price: effectivePrice,
       image_url: product.image_url,
       qty: qty,
     });
   }
   saveCart(cart);
+}
+
+/* ══════════════════ SERVER-SIDE CART (signed-in customers) ══════════════════
+   localStorage stays the synchronous source of truth every page reads from —
+   nothing above changes. This is a best-effort mirror on top: whenever the
+   local cart changes, push it to `cart_items` if signed in, so a customer
+   who adds items on their phone still has them when they check out on a
+   laptop. Guests (no session) are untouched — every call below is a no-op
+   for them. */
+async function syncCartToServer(cart) {
+  try {
+    if (typeof supabaseClient === 'undefined') return;
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) return;
+    const customerId = session.user.id;
+
+    const { data: existing } = await supabaseClient.from('cart_items').select('id, product_id').eq('customer_id', customerId);
+    const cartIds = new Set(cart.map(i => String(i.id)));
+    const toDelete = (existing || []).filter(row => !cartIds.has(String(row.product_id))).map(row => row.id);
+    if (toDelete.length) await supabaseClient.from('cart_items').delete().in('id', toDelete);
+
+    if (cart.length) {
+      const rows = cart.map(item => ({ customer_id: customerId, product_id: item.id, quantity: item.qty }));
+      await supabaseClient.from('cart_items').upsert(rows, { onConflict: 'customer_id,product_id' });
+    }
+  } catch {
+    // Best-effort — localStorage is still correct for this session either way.
+  }
+}
+
+// Runs once per page load (see DOMContentLoaded below). If there's no local
+// cart yet, pulls the server one down. If there IS a local cart already
+// (items added before logging in, or on a fresh device), local wins and gets
+// pushed up — so the two never silently disagree.
+async function hydrateCartFromServer() {
+  try {
+    if (typeof supabaseClient === 'undefined') return;
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) return;
+
+    const localCart = getCart();
+    if (localCart.length) {
+      syncCartToServer(localCart);
+      return;
+    }
+
+    const { data: serverItems, error } = await supabaseClient
+      .from('cart_items')
+      .select('quantity, products(id, name, price, sale_price, image_url)')
+      .eq('customer_id', session.user.id);
+    if (error || !serverItems || !serverItems.length) return;
+
+    const hydrated = serverItems.filter(r => r.products).map(r => ({
+      id: String(r.products.id),
+      name: r.products.name,
+      price: r.products.sale_price != null ? r.products.sale_price : r.products.price,
+      image_url: r.products.image_url,
+      qty: r.quantity,
+    }));
+    localStorage.setItem(CART_KEY, JSON.stringify(hydrated));
+    updateCartBadge();
+  } catch {
+    // Best-effort — worst case the cart just stays empty until they add something.
+  }
 }
 
 function updateCartQty(id, qty) {
@@ -100,8 +169,44 @@ async function claimPendingOrder() {
   }
 }
 
+/* ══════════════════ SHOW LOGGED-IN NAME ON THE ACCOUNT ICON ══════════════════
+   Runs on every page that loads cart.js + supabase-config.js. No-op while
+   signed out (the icon just stays a plain icon, same as today). */
+async function updateAccountNavName() {
+  try {
+    if (typeof supabaseClient === 'undefined') return;
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) return;
+
+    let name = session.user.user_metadata && session.user.user_metadata.full_name;
+    if (!name) {
+      // maybeSingle (not single) — a missing/RLS-blocked profile row must
+      // fall through to the email below, not throw and skip it entirely.
+      try {
+        const { data: profile } = await supabaseClient
+          .from('profiles')
+          .select('full_name')
+          .eq('id', session.user.id)
+          .maybeSingle();
+        name = profile && profile.full_name;
+      } catch {
+        // fall through to the email-based name below
+      }
+    }
+    const firstName = (name || session.user.email.split('@')[0]).trim().split(' ')[0];
+
+    document.querySelectorAll('.account-icon-link .account-name').forEach(el => {
+      el.textContent = firstName;
+    });
+  } catch {
+    // Not critical — the icon just stays generic if this fails.
+  }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   updateCartBadge();
   claimPendingOrder();
+  updateAccountNavName();
+  hydrateCartFromServer();
 });
 

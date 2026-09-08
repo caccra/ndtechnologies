@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Dashboard — Admin — ND Electronic Technologies Ltd</title>
+<meta name="robots" content="noindex, nofollow" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Poppins:wght@500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/assets/styles.css" />
+<link rel="stylesheet" href="/assets/admin.css" />
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+<div class="admin-shell">
+  <div class="admin-sidebar">
+    <a href="/" class="brand" id="navBrand"></a>
+    <div class="admin-sidebar-tag">Admin Panel</div>
+    <div class="admin-global-search" id="globalSearchBox">
+      <svg><use href="#ico-search"/></svg>
+      <input type="text" id="globalSearchInput" placeholder="Search everything…" autocomplete="off" />
+      <div id="globalSearchResults"></div>
+    </div>
+    <div class="admin-nav">
+      <a href="/admin/" class="active"><svg><use href="#ico-dashboard"/></svg><span>Dashboard</span></a>
+      <a href="/admin/products/"><svg><use href="#ico-box"/></svg><span>Products</span></a>
+      <a href="/admin/coupons/"><svg><use href="#ico-tag"/></svg><span>Coupons</span></a>
+      <a href="/admin/orders/"><svg><use href="#ico-cash"/></svg><span>Orders</span></a>
+      <a href="/admin/leads/"><svg><use href="#ico-mail"/></svg><span>Leads</span></a>
+      <a href="/admin/reviews/"><svg><use href="#ico-star"/></svg><span>Reviews</span></a>
+      <a href="/admin/finance/"><svg><use href="#ico-chart"/></svg><span>Finance</span></a>
+      <a href="/admin/customers/"><svg><use href="#ico-user"/></svg><span>Customers</span></a>
+    </div>
+    <div class="admin-sidebar-foot">
+      <div class="admin-sidebar-user" id="userEmail"></div>
+      <button id="signOutBtn" class="btn btn-outline-dark" style="padding:8px 16px;font-size:12.5px;">Sign Out</button>
+    </div>
+  </div>
+  <div class="admin-main">
+    <div class="admin-head">
+      <div>
+        <h1>Dashboard</h1>
+        <p>What needs your attention, at a glance.</p>
+      </div>
+    </div>
+
+    <div class="admin-stats-grid" id="statsGrid">
+      <a href="/admin/orders/" class="admin-stat-card" id="cardPending">
+        <div class="admin-stat-num">—</div>
+        <div class="admin-stat-label">Pending Orders</div>
+      </a>
+      <a href="/admin/leads/" class="admin-stat-card" id="cardLeads">
+        <div class="admin-stat-num">—</div>
+        <div class="admin-stat-label">New Leads</div>
+      </a>
+      <a href="/admin/products/" class="admin-stat-card" id="cardStock">
+        <div class="admin-stat-num">—</div>
+        <div class="admin-stat-label">Low Stock (≤3)</div>
+      </a>
+      <a href="/admin/orders/" class="admin-stat-card" id="cardToday">
+        <div class="admin-stat-num">—</div>
+        <div class="admin-stat-label">Orders Today</div>
+      </a>
+      <a href="/admin/reviews/" class="admin-stat-card" id="cardReviews">
+        <div class="admin-stat-num">—</div>
+        <div class="admin-stat-label">Avg Rating (<span id="reviewCount">0</span> reviews)</div>
+      </a>
+    </div>
+
+    <div class="admin-dash-grid">
+      <div class="admin-panel admin-dash-panel">
+        <h2>Recent Orders <a href="/admin/orders/">View all →</a></h2>
+        <div id="recentOrders"><p style="color:var(--text-muted);font-size:13.5px;">Loading…</p></div>
+      </div>
+      <div class="admin-panel admin-dash-panel">
+        <h2>Recent Leads <a href="/admin/leads/">View all →</a></h2>
+        <div id="recentLeads"><p style="color:var(--text-muted);font-size:13.5px;">Loading…</p></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/assets/supabase-config.js"></script>
+<script src="/assets/admin.js"></script>
+<script>initGlobalSearch(supabaseClient);</script>
+<script>
+  (async function guard() {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) { window.location.href = '/admin/login/'; return; }
+    const { data: profile } = await supabaseClient.from('profiles').select('is_admin, role').eq('id', session.user.id).maybeSingle();
+    if (!profile || !profile.is_admin) {
+      await supabaseClient.auth.signOut();
+      window.location.href = '/admin/login/';
+      return;
+    }
+    document.getElementById('userEmail').textContent = session.user.email;
+    if (profile.role !== 'owner') {
+      const financeLink = document.querySelector('.admin-nav a[href="/admin/finance/"]');
+      if (financeLink) financeLink.remove();
+    }
+    loadDashboard();
+  })();
+
+  document.getElementById('signOutBtn').addEventListener('click', async () => {
+    await supabaseClient.auth.signOut();
+    window.location.href = '/admin/login/';
+  });
+
+  function ugx(n) { return 'UGX ' + Number(n).toLocaleString('en-UG'); }
+  function fmtDate(iso) { return new Date(iso).toLocaleString('en-UG', { dateStyle: 'medium', timeStyle: 'short' }); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+  async function loadDashboard() {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    const [pending, newLeads, lowStock, ordersToday, recentOrders, recentLeads, reviews] = await Promise.all([
+      supabaseClient.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+      supabaseClient.from('leads').select('*', { count: 'exact', head: true }).eq('status', 'new'),
+      supabaseClient.from('products').select('*', { count: 'exact', head: true }).eq('is_active', true).lte('stock', 3),
+      supabaseClient.from('orders').select('*', { count: 'exact', head: true }).gte('created_at', todayStart.toISOString()),
+      supabaseClient.from('orders').select('customer_name, total, status, created_at').order('created_at', { ascending: false }).limit(5),
+      supabaseClient.from('leads').select('first_name, last_name, service, status, created_at').order('created_at', { ascending: false }).limit(5),
+      supabaseClient.from('reviews').select('rating'),
+    ]);
+
+    setStat('cardPending', pending.count, pending.count > 0);
+    setStat('cardLeads', newLeads.count, newLeads.count > 0);
+    setStat('cardStock', lowStock.count, lowStock.count > 0);
+    setStat('cardToday', ordersToday.count, false);
+
+    const reviewList = reviews.data || [];
+    document.getElementById('reviewCount').textContent = reviewList.length;
+    const avgRating = reviewList.length
+      ? (reviewList.reduce((sum, r) => sum + r.rating, 0) / reviewList.length).toFixed(1)
+      : '—';
+    document.getElementById('cardReviews').querySelector('.admin-stat-num').textContent = avgRating;
+
+    const ordersHost = document.getElementById('recentOrders');
+    if (!recentOrders.data || !recentOrders.data.length) {
+      ordersHost.innerHTML = '<p style="color:var(--text-muted);font-size:13.5px;">No orders yet.</p>';
+    } else {
+      ordersHost.innerHTML = recentOrders.data.map(o => `
+        <div class="admin-dash-row">
+          <div class="admin-dash-row-main">
+            <strong>${esc(o.customer_name)}</strong>
+            <span>${fmtDate(o.created_at)}</span>
+          </div>
+          <span class="order-status ${o.status}">${esc(o.status)}</span>
+        </div>`).join('');
+    }
+
+    const leadsHost = document.getElementById('recentLeads');
+    if (!recentLeads.data || !recentLeads.data.length) {
+      leadsHost.innerHTML = '<p style="color:var(--text-muted);font-size:13.5px;">No leads yet.</p>';
+    } else {
+      leadsHost.innerHTML = recentLeads.data.map(l => `
+        <div class="admin-dash-row">
+          <div class="admin-dash-row-main">
+            <strong>${esc(l.first_name)} ${esc(l.last_name)}</strong>
+            <span>${esc(l.service)} · ${fmtDate(l.created_at)}</span>
+          </div>
+          <span class="order-status ${l.status === 'new' ? 'pending' : l.status === 'contacted' ? 'in_progress' : 'fulfilled'}">${esc(l.status)}</span>
+        </div>`).join('');
+    }
+  }
+
+  function setStat(cardId, count, alert) {
+    const card = document.getElementById(cardId);
+    card.querySelector('.admin-stat-num').textContent = count == null ? '—' : count;
+    card.classList.toggle('alert', !!alert);
+  }
+</script>
+<script src="/assets/script.js" defer></script>
+</body>
+</html>

@@ -12,12 +12,23 @@
 <link rel="apple-touch-icon" href="/assets/images/apple-touch-icon.png" />
 <meta name="theme-color" content="#0a1628" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Poppins:wght@500;600;700&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/assets/styles.css" />
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body data-page="account">
 
+<div class="topbar">
+  <div class="topbar-right-bg"></div>
+  <div class="topbar-inner">
+    <div class="topbar-left">
+      <a href="tel:+256704399665"><svg><use href="#ico-phone"/></svg> 0704 399665 / 0773 270782</a>
+      <a href="mailto:info@ndelectronictechnologies.com"><svg><use href="#ico-mail"/></svg> info@ndelectronictechnologies.com / ndtechnologiesltd@gmail.com</a>
+    </div>
+    <div class="topbar-right"><svg><use href="#ico-clock"/></svg> Mon &ndash; Sat 8:00am &ndash; 7:00pm</div>
+  </div>
+</div>
 <nav id="navbar">
   <a href="/" class="brand" id="navBrand"></a>
   <ul class="nav-links">
@@ -28,7 +39,7 @@
     <li><a href="/contact/" data-nav="contact">Contact</a></li>
   </ul>
   <div class="nav-right">
-    <a href="/account/" class="account-icon-link" aria-label="Account"><svg><use href="#ico-user"/></svg></a>
+    <a href="/account/" class="account-icon-link" aria-label="Account"><svg><use href="#ico-user"/></svg><span class="account-name"></span></a>
     <a href="/cart/" class="cart-icon-link" aria-label="Cart">
       <svg viewBox="0 0 24 24" fill="none"><path d="M3 4h2l2.4 12.2a2 2 0 0 0 2 1.8h7.6a2 2 0 0 0 2-1.6L21 8H6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="10" cy="21" r="1.4" fill="currentColor"/><circle cx="17" cy="21" r="1.4" fill="currentColor"/></svg>
       <span class="cart-badge" data-cart-count>0</span>

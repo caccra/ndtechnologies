@@ -101,6 +101,11 @@
       <path d="M14 3v10.6a3 3 0 1 1-2-2.83V3h2Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
       <path d="M14 3.3c.3 2.2 1.9 3.8 4 4.1" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
     </symbol>
+    <symbol id="ico-instagram" viewBox="0 0 24 24">
+      <rect x="3" y="3" width="18" height="18" rx="5" fill="none" stroke="currentColor" stroke-width="1.7"/>
+      <circle cx="12" cy="12" r="4.2" fill="none" stroke="currentColor" stroke-width="1.7"/>
+      <circle cx="17.3" cy="6.7" r="1.15" fill="currentColor"/>
+    </symbol>
     <symbol id="ico-cash" viewBox="0 0 24 24">
       <rect x="2" y="6" width="20" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/>
       <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.6"/>
@@ -125,9 +130,53 @@
     <symbol id="ico-star" viewBox="0 0 24 24">
       <path d="M12 3.5 14.7 9 20.8 9.9 16.4 14.1 17.5 20.2 12 17.3 6.5 20.2 7.6 14.1 3.2 9.9 9.3 9Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
     </symbol>
+    <symbol id="ico-clock" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.7"/>
+      <path d="M12 7v5l3.5 2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="ico-dashboard" viewBox="0 0 24 24">
+      <rect x="3" y="3" width="8" height="8" rx="1.3" fill="none" stroke="currentColor" stroke-width="1.7"/>
+      <rect x="13" y="3" width="8" height="5" rx="1.3" fill="none" stroke="currentColor" stroke-width="1.7"/>
+      <rect x="13" y="10" width="8" height="11" rx="1.3" fill="none" stroke="currentColor" stroke-width="1.7"/>
+      <rect x="3" y="13" width="8" height="8" rx="1.3" fill="none" stroke="currentColor" stroke-width="1.7"/>
+    </symbol>
+    <symbol id="ico-box" viewBox="0 0 24 24">
+      <path d="M3 8 12 3l9 5-9 5-9-5Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+      <path d="M3 8v9l9 5 9-5V8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+      <path d="M12 13v9" fill="none" stroke="currentColor" stroke-width="1.6"/>
+    </symbol>
+    <symbol id="ico-download" viewBox="0 0 24 24">
+      <path d="M12 3v12M7.5 11 12 15.5 16.5 11" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M4 17.5V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-1.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="ico-chevron" viewBox="0 0 24 24">
+      <path d="M9 5.5 15.5 12 9 18.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="ico-chart" viewBox="0 0 24 24">
+      <path d="M3 20V4M3 20h18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M6 16l4-4 3 3 6-7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="ico-tag" viewBox="0 0 24 24">
+      <path d="M11.5 3.5H5a1.5 1.5 0 0 0-1.5 1.5v6.5a1.5 1.5 0 0 0 .44 1.06l9 9a1.5 1.5 0 0 0 2.12 0l6.5-6.5a1.5 1.5 0 0 0 0-2.12l-9-9a1.5 1.5 0 0 0-1.06-.44Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+      <circle cx="8.2" cy="8.2" r="1.3" fill="currentColor"/>
+    </symbol>
+    <symbol id="ico-search" viewBox="0 0 24 24">
+      <circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="1.7"/>
+      <path d="M15.5 15.5 20.5 20.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="ico-print" viewBox="0 0 24 24">
+      <path d="M6 9V3.5h12V9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+      <rect x="3.5" y="9" width="17" height="8" rx="1.3" fill="none" stroke="currentColor" stroke-width="1.6"/>
+      <rect x="6" y="13.5" width="12" height="7" fill="none" stroke="currentColor" stroke-width="1.6"/>
+    </symbol>
+    <symbol id="ico-undo" viewBox="0 0 24 24">
+      <path d="M4 10h10a5.5 5.5 0 0 1 0 11H8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M8 5 4 10l4 5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
   </defs>`;
 
-  const LOGO_IMG = '<img src="/assets/images/nd-logo-clean.jpg" alt="ND Electronic Technologies Ltd" />';
+  const LOGO_IMG = '<img src="/assets/images/nd-logo-transparent.png" alt="ND Electronic Technologies Ltd" />';
+  const FOOTER_LOGO_IMG = '<img src="/assets/images/nd-electronic-footer-logo.png" alt="ND Electronic Technologies Ltd" />';
 
   function init() {
     // icon sprite (hidden, reused via <use>)
@@ -143,7 +192,24 @@
     const navBrand = document.getElementById('navBrand');
     if (navBrand) navBrand.innerHTML = LOGO_IMG;
     const footerBrand = document.getElementById('footerBrand');
-    if (footerBrand) footerBrand.innerHTML = LOGO_IMG;
+    if (footerBrand) footerBrand.innerHTML = FOOTER_LOGO_IMG;
+
+    // topbar: nav sits fixed just below it at load, then follows it up as it
+    // scrolls away so nav's top edge always meets the topbar's shrinking
+    // visible remainder exactly — a binary 0/h snap here would leave a gap
+    // (exposing whatever's behind, e.g. a dark hero) for the entire
+    // in-between scroll range, so this has to track continuously, not snap.
+    const topbar = document.querySelector('.topbar');
+    const nav = document.getElementById('navbar');
+    if (topbar && nav) {
+      const placeNav = () => {
+        const h = topbar.offsetHeight; // 0 on mobile, where the topbar is hidden
+        nav.style.top = Math.max(0, h - window.scrollY) + 'px';
+      };
+      placeNav();
+      window.addEventListener('scroll', placeNav, { passive: true });
+      window.addEventListener('resize', placeNav);
+    }
 
     // footer copyright year range (founded 2021 -> current year)
     const copyrightEl = document.getElementById('copyrightYears');
@@ -213,15 +279,61 @@
       if (service && select) {
         [...select.options].forEach(opt => { if (opt.value === service) select.value = service; });
       }
-      form.addEventListener('submit', function (e) {
+      form.addEventListener('submit', async function (e) {
         e.preventDefault();
         const btn = form.querySelector('.form-submit');
+        const errorBox = document.getElementById('contactFormError');
+        if (errorBox) errorBox.style.display = 'none';
+
+        const lead = {
+          first_name: document.getElementById('leadFirstName').value.trim(),
+          last_name: document.getElementById('leadLastName').value.trim(),
+          phone: document.getElementById('leadPhone').value.trim(),
+          email: document.getElementById('leadEmail').value.trim() || null,
+          service: document.getElementById('leadService').value,
+          location: document.getElementById('leadLocation').value.trim(),
+          message: document.getElementById('leadMessage').value.trim() || null,
+        };
+
+        if (typeof supabaseClient === 'undefined') {
+          if (errorBox) {
+            errorBox.textContent = "Sorry — this form isn't available right now. Please call or WhatsApp us instead.";
+            errorBox.style.display = 'block';
+          }
+          return;
+        }
+
         btn.textContent = 'Sending...';
         btn.disabled = true;
-        setTimeout(() => {
+
+        try {
+          const { data: inserted, error } = await supabaseClient
+            .from('leads')
+            .insert(lead)
+            .select()
+            .single();
+          if (error) throw error;
+
+          // Fire-and-forget — the lead is already saved regardless of whether
+          // this email notification succeeds (same pattern as order emails).
+          if (typeof SUPABASE_URL !== 'undefined') {
+            fetch(`${SUPABASE_URL}/functions/v1/send-lead-notification`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ lead_id: inserted.id }),
+            }).catch(() => {});
+          }
+
           document.getElementById('formSuccess').style.display = 'block';
           btn.style.display = 'none';
-        }, 1000);
+        } catch (err) {
+          btn.textContent = 'Send Request →';
+          btn.disabled = false;
+          if (errorBox) {
+            errorBox.textContent = 'Something went wrong sending your request. Please call or WhatsApp us instead — ' + (err.message || 'unknown error') + '.';
+            errorBox.style.display = 'block';
+          }
+        }
       });
     }
   }

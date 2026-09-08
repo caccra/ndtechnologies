@@ -157,7 +157,30 @@ before relying on this for real orders):
 
 ---
 
-## 7. Test it end-to-end
+## 7. Contact-page lead notifications
+
+The "Request a Site Survey" form on `/contact/` saves straight to Supabase
+and, like order emails above, sends you an alert through Resend the moment
+someone submits it — always to sales, regardless of whatever `ADMIN_NOTIFY_EMAIL`
+is set to for order alerts. Uses the same Resend account as section 6 — no
+new sign-up needed.
+
+1. Deploy the function and set its one new secret:
+   ```
+   supabase functions deploy send-lead-notification
+   supabase secrets set LEADS_NOTIFY_EMAIL=sales@ndelectronictechnologies.com
+   ```
+   (`RESEND_API_KEY`/`RESEND_FROM` are already set from section 6 — nothing new to configure there. Accepts one address or several, comma-separated, same as `ADMIN_NOTIFY_EMAIL`.)
+2. This already works via a fallback call built into `assets/script.js`. For the same webhook-based reliability described in section 6:
+3. In Supabase: **Database → Webhooks → Create a new webhook**.
+4. Create one for **INSERT** on the `leads` table, calling the `send-lead-notification` Edge Function.
+
+Submitted leads show up at `/admin/leads/` — search, filter by status (New /
+Contacted / Closed), and mark them as you follow up.
+
+---
+
+## 8. Test it end-to-end
 
 1. Add a product in `admin/products.html`.
 2. Open `shop.html`, add it to your cart, go to `cart.html`, and fill in the delivery details (optionally register/log in first at `/account/register/` to have the order linked to your account).
@@ -173,7 +196,7 @@ your business) and you're accepting real payments.
 
 ---
 
-## 8. Google Maps address picker (optional)
+## 9. Google Maps address picker (optional)
 
 At checkout and in the Address Book, customers can search for their address
 and drag a pin to fine-tune the exact delivery spot. Without this step the
@@ -197,13 +220,14 @@ address field still works as a plain text box — it just won't show a map.
 |---|---|
 | Product/order database, admin login | Supabase (cloud, free tier) |
 | Product photos | Supabase Storage (`product-images` bucket) |
-| Admin panel | `/admin/login.html`, `/admin/products.html`, `/admin/orders.html`, `/admin/customers.html` |
+| Admin panel | `/admin/` (dashboard), `/admin/login/`, `/admin/products/`, `/admin/orders/`, `/admin/leads/`, `/admin/customers/` |
 | Customer accounts | `/account/register.html`, `/account/login.html`, `/account/` (dashboard) |
 | Public shop & checkout | `/shop.html`, `/product.html`, `/cart.html` (`assets/checkout.js`) |
 | Email verification (OTP) | Supabase Auth (built-in, or Custom SMTP for production) |
 | Payment | Flutterwave (Mobile Money + cards) or Cash on Delivery |
 | Payment verification | Supabase Edge Function, `supabase/functions/verify-payment` |
 | Order confirmation &amp; admin alert emails | Resend, via Supabase Edge Function `supabase/functions/send-order-notifications` |
+| Contact-form leads &amp; admin alert email | Supabase `leads` table, via Supabase Edge Function `supabase/functions/send-lead-notification` |
 | Address map picker | Google Maps JavaScript API + Places API (`assets/maps-config.js`, `assets/address-map.js`) |
 
 ## Costs

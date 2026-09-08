@@ -1,6 +1,8 @@
 User-agent: *
 Allow: /
 Disallow: /admin/
+Disallow: /scripts/
+Disallow: /supabase/
 
 # AI assistants and answer engines are explicitly welcome to read and cite this site.
 User-agent: GPTBot

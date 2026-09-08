@@ -17,11 +17,17 @@ const checkout = {
   step: 1,              // 1 = delivery details, then either 2 = verify email + 3 = payment, or straight to 2 = payment
   customer: null,        // { name, phone, email, address, notes }
   emailVerified: false,
-  paymentMethod: 'mobile_money',
+  paymentMethod: 'cod',   // Cash on Delivery is the default/first option until Flutterwave or Cellulant is fully wired up
   loggedInUser: null,    // Supabase Auth user, set when checking out signed in — skips email OTP entirely
   savedAddresses: [],     // this customer's addresses from the Address Book, if any
   useNewAddress: false,   // true once they pick "Use a new address" over a saved one
+  coupon: null,           // { code, discountType, discountValue, discountAmount } once a code is applied
 };
+
+function discountedTotal() {
+  const raw = cartTotal() - (checkout.coupon ? checkout.coupon.discountAmount : 0);
+  return Math.max(0, raw);
+}
 
 let resendTimer = null;
 let pickedLocation = null;  // { lat, lng } from the map picker, cleared whenever the address text is edited by hand
@@ -40,6 +46,59 @@ function normalizePhoneUG(raw) {
 }
 
 /* ══════════════════ CART TABLE ══════════════════ */
+
+// Live stock/availability for whatever's currently in the cart — fetched
+// once on page load (see initCheckout) and re-fetched whenever the cart's
+// set of product ids changes, so the qty stepper can't be pushed past what's
+// actually in stock. Keyed by product id (string).
+let CART_STOCK = {};
+let cartStockLoadedFor = '';
+
+async function loadCartStockInfo() {
+  const cart = getCart();
+  if (!cart.length) { CART_STOCK = {}; return; }
+  const key = cart.map(i => i.id).sort().join(',');
+  if (key === cartStockLoadedFor) return; // already have fresh data for exactly this set of items
+  try {
+    const { data, error } = await supabaseClient.from('products').select('id, stock, is_active').in('id', cart.map(i => i.id));
+    if (error) return;
+    CART_STOCK = {};
+    (data || []).forEach(p => { CART_STOCK[String(p.id)] = p; });
+    cartStockLoadedFor = key;
+  } catch {
+    // Best-effort — the stepper just won't cap this render if it fails.
+  }
+}
+
+function cartToast(message) {
+  let el = document.getElementById('cartToast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'cartToast';
+    el.className = 'cart-toast';
+    document.body.appendChild(el);
+  }
+  el.textContent = message;
+  el.classList.add('show');
+  clearTimeout(el._hideTimer);
+  el._hideTimer = setTimeout(() => el.classList.remove('show'), 2800);
+}
+
+async function saveForLater(productId) {
+  if (!checkout.loggedInUser) return;
+  try {
+    await supabaseClient.from('wishlist_items').upsert(
+      { customer_id: checkout.loggedInUser.id, product_id: productId },
+      { onConflict: 'customer_id,product_id' }
+    );
+  } catch {
+    // Not fatal — worst case it's just removed from the cart, not saved.
+  }
+  removeFromCart(productId);
+  renderCart();
+  cartToast('Saved for later — find it in your Wishlist.');
+}
+
 function renderCart() {
   const cart = getCart();
   const wrap = document.getElementById('cartContent');
@@ -50,17 +109,31 @@ function renderCart() {
         <p>Your cart is empty.</p>
         <a href="/shop/" class="btn btn-primary">Browse the Shop →</a>
       </div>`;
+    loadCrossSell([]);
     return;
   }
 
-  const rows = cart.map(item => `
+  const rows = cart.map(item => {
+    const stockInfo = CART_STOCK[item.id];
+    const unavailable = stockInfo && stockInfo.is_active === false;
+    const overStock = stockInfo && !unavailable && stockInfo.stock < item.qty;
+    const atCeiling = stockInfo && !unavailable && item.qty >= stockInfo.stock;
+    let warning = '';
+    if (unavailable) warning = `<div class="cart-stock-warn">No longer available — please remove.</div>`;
+    else if (overStock) warning = `<div class="cart-stock-warn">Only ${stockInfo.stock} left in stock — reduce quantity.</div>`;
+
+    return `
     <tr>
       <td>
         <div class="cart-item-info">
           <img class="cart-item-img" src="${esc(item.image_url || '')}" alt="">
           <div>
             <div class="cart-item-name">${esc(item.name)}</div>
-            <button class="cart-remove" data-remove="${esc(item.id)}">Remove</button>
+            <div class="cart-item-actions">
+              <button class="cart-remove" data-remove="${esc(item.id)}">Remove</button>
+              ${checkout.loggedInUser ? `<button class="cart-remove" data-save-later="${esc(item.id)}">Save for later</button>` : ''}
+            </div>
+            ${warning}
           </div>
         </div>
       </td>
@@ -69,12 +142,13 @@ function renderCart() {
         <div class="qty-stepper">
           <button type="button" data-minus="${esc(item.id)}">−</button>
           <span>${item.qty}</span>
-          <button type="button" data-plus="${esc(item.id)}">+</button>
+          <button type="button" data-plus="${esc(item.id)}" ${atCeiling ? 'disabled' : ''}>+</button>
         </div>
       </td>
       <td style="font-weight:700;">${formatUGX(item.price * item.qty)}</td>
     </tr>
-  `).join('');
+  `;
+  }).join('');
 
   wrap.innerHTML = `
     <div class="detail-grid">
@@ -93,16 +167,22 @@ function renderCart() {
       <aside class="sidebar">
         <div class="cart-summary">
           <div class="cart-summary-row"><span>Subtotal</span><span>${formatUGX(cartTotal())}</span></div>
-          <div class="cart-summary-row total"><span>Total</span><span>${formatUGX(cartTotal())}</span></div>
+          ${checkout.coupon ? `<div class="cart-summary-row" style="color:var(--amber-dark);"><span>Discount (${esc(checkout.coupon.code)})</span><span>−${formatUGX(checkout.coupon.discountAmount)}</span></div>` : ''}
+          <div class="cart-summary-row total"><span>Total</span><span>${formatUGX(discountedTotal())}</span></div>
+          <div class="cart-delivery-note"><svg style="width:15px;height:15px;flex-shrink:0;"><use href="#ico-clock"/></svg>Delivery: 1–3 working days across Kampala, arranged once your order's confirmed.</div>
         </div>
         <div id="checkoutSidebar" style="margin-top:20px;"></div>
       </aside>
     </div>
+    <div id="crossSellWrap"></div>
   `;
 
   wrap.querySelectorAll('[data-remove]').forEach(btn => btn.addEventListener('click', () => { removeFromCart(btn.dataset.remove); renderCart(); }));
+  wrap.querySelectorAll('[data-save-later]').forEach(btn => btn.addEventListener('click', () => saveForLater(btn.dataset.saveLater)));
   wrap.querySelectorAll('[data-plus]').forEach(btn => btn.addEventListener('click', () => {
     const item = getCart().find(i => i.id === btn.dataset.plus);
+    const stockInfo = CART_STOCK[btn.dataset.plus];
+    if (stockInfo && item.qty >= stockInfo.stock) return;
     updateCartQty(btn.dataset.plus, item.qty + 1);
     renderCart();
   }));
@@ -113,6 +193,81 @@ function renderCart() {
   }));
 
   renderCheckoutSidebar();
+  loadCartStockInfo().then(() => renderCartWarningsOnly());
+  loadCrossSell(cart);
+}
+
+// Re-paints just the per-row stock warnings/+-button state after
+// loadCartStockInfo resolves, without re-running the whole renderCart (which
+// would wipe out anything the shopper's mid-typing in the checkout sidebar).
+function renderCartWarningsOnly() {
+  const cart = getCart();
+  cart.forEach(item => {
+    const stockInfo = CART_STOCK[item.id];
+    if (!stockInfo) return;
+    const row = document.querySelector(`[data-plus="${CSS.escape(item.id)}"]`)?.closest('tr');
+    if (!row) return;
+    const plusBtn = row.querySelector('[data-plus]');
+    const infoCell = row.querySelector('.cart-item-info > div');
+    const unavailable = stockInfo.is_active === false;
+    const overStock = !unavailable && stockInfo.stock < item.qty;
+    plusBtn.disabled = !unavailable && item.qty >= stockInfo.stock;
+    let existing = infoCell.querySelector('.cart-stock-warn');
+    if (existing) existing.remove();
+    if (unavailable || overStock) {
+      const warn = document.createElement('div');
+      warn.className = 'cart-stock-warn';
+      warn.textContent = unavailable ? 'No longer available — please remove.' : `Only ${stockInfo.stock} left in stock — reduce quantity.`;
+      infoCell.appendChild(warn);
+    }
+  });
+}
+
+/* ══════════════════ CROSS-SELL ("you might also need") ══════════════════ */
+async function loadCrossSell(cart) {
+  const host = document.getElementById('crossSellWrap');
+  if (!host) return;
+  try {
+    let query = supabaseClient.from('products').select('*').eq('is_active', true).gt('stock', 0);
+    if (cart.length) {
+      const cartIds = cart.map(i => i.id);
+      // Same categories as what's already in the cart — a rough but
+      // reasonable stand-in for "frequently bought together" without needing
+      // real order-history analysis.
+      const { data: cartProducts } = await supabaseClient.from('products').select('category').in('id', cartIds);
+      const categories = [...new Set((cartProducts || []).map(p => p.category).filter(Boolean))];
+      if (categories.length) query = query.in('category', categories);
+      query = query.not('id', 'in', `(${cartIds.join(',')})`);
+    }
+    const { data, error } = await query.order('created_at', { ascending: false }).limit(4);
+    if (error || !data || !data.length) { host.innerHTML = ''; return; }
+
+    host.innerHTML = `
+      <div class="cart-crosssell">
+        <h3>You might also need</h3>
+        <div class="cart-crosssell-grid">
+          ${data.map(p => `
+            <div class="cart-crosssell-card">
+              <a href="/product/?id=${p.id}">${p.image_url ? `<img src="${esc(p.image_url)}" alt="">` : ''}</a>
+              <a href="/product/?id=${p.id}"><h4>${esc(p.name)}</h4></a>
+              <div class="price">${formatUGX(p.sale_price != null ? p.sale_price : p.price)}</div>
+              <button type="button" class="btn btn-outline-navy" data-crosssell-add="${p.id}">Add to Cart</button>
+            </div>`).join('')}
+        </div>
+      </div>`;
+
+    host.querySelectorAll('[data-crosssell-add]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const p = data.find(x => String(x.id) === btn.dataset.crosssellAdd);
+        if (p) addToCart({ ...p, id: String(p.id) }, 1);
+        btn.textContent = 'Added ✓';
+        setTimeout(() => { btn.textContent = 'Add to Cart'; }, 1200);
+        renderCart();
+      });
+    });
+  } catch {
+    host.innerHTML = '';
+  }
 }
 
 /* ══════════════════ CHECKOUT SIDEBAR (steps) ══════════════════ */
@@ -192,9 +347,10 @@ function step1Html() {
       <div class="contact-form-wrap checkout-step">
         <div class="checkout-step-label">Step 1 of ${TOTAL_STEPS} — Delivery Address</div>
         <h3 style="font-size:16px;">Where should we deliver?</h3>
-        <p style="margin-bottom:18px;">Deliver to <strong>${esc(c.name)}</strong> · ${esc(c.phone)}</p>
+        <p style="margin-bottom:18px;">Deliver to <strong>${esc(c.name)}</strong></p>
         <div class="admin-error" id="checkoutError"></div>
         <form id="detailsForm">
+          <div class="form-group"><label>Phone Number *</label><input type="tel" id="custPhone" required placeholder="+256 7__ ___ ___" value="${esc(c.phone || '')}" /></div>
           ${addressFieldHtml}
           <div class="form-group"><label>Notes</label><textarea id="custNotes" placeholder="Optional">${esc(c.notes || '')}</textarea></div>
           <button type="submit" class="btn btn-primary" id="detailsBtn" style="width:100%;justify-content:center;">Continue to Payment →</button>
@@ -242,14 +398,73 @@ function step2Html() {
     </div>`;
 }
 
+async function applyCoupon() {
+  const input = document.getElementById('couponInput');
+  const errorBox = document.getElementById('couponError');
+  errorBox.style.display = 'none';
+  const code = (input.value || '').trim();
+  if (!code) return;
+
+  const btn = document.getElementById('applyCouponBtn');
+  btn.disabled = true;
+  btn.textContent = 'Checking...';
+
+  try {
+    // RLS only exposes active coupons — an inactive/nonexistent code just
+    // comes back as no rows, which reads the same either way to a shopper.
+    const { data: coupon, error } = await supabaseClient
+      .from('coupons')
+      .select('*')
+      .ilike('code', code)
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!coupon) throw new Error('That code isn\'t valid.');
+    if (coupon.expires_at && new Date(coupon.expires_at) < new Date()) throw new Error('That code has expired.');
+    if (coupon.usage_limit != null && coupon.times_used >= coupon.usage_limit) throw new Error('That code has already been fully redeemed.');
+
+    const subtotal = cartTotal();
+    const discountAmount = coupon.discount_type === 'percent'
+      ? Math.round(subtotal * (Number(coupon.discount_value) / 100))
+      : Math.min(subtotal, Math.round(Number(coupon.discount_value)));
+
+    checkout.coupon = { code: coupon.code, discountType: coupon.discount_type, discountValue: coupon.discount_value, discountAmount };
+    renderCheckoutSidebar();
+  } catch (err) {
+    errorBox.textContent = err.message || 'Could not apply that code.';
+    errorBox.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = 'Apply';
+  }
+}
+
 function step3Html(total) {
   const m = checkout.paymentMethod;
+  const discounted = discountedTotal();
   return `
     <div class="contact-form-wrap checkout-step">
       <div class="checkout-step-label">Step ${PAYMENT_STEP} of ${TOTAL_STEPS} — Payment Method</div>
       <h3 style="font-size:16px;">How would you like to pay?</h3>
       <div class="admin-error" id="paymentError"></div>
+      <div class="admin-error" id="couponError" style="display:none;"></div>
+      ${checkout.coupon
+        ? `<div class="form-group" style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--amber-light);border-radius:var(--radius);padding:10px 14px;">
+             <span style="font-size:13px;color:var(--amber-dark);">Code <strong>${esc(checkout.coupon.code)}</strong> applied — −${formatUGX(checkout.coupon.discountAmount)}</span>
+             <button type="button" id="removeCouponBtn" class="checkout-link" style="font-size:12px;">Remove</button>
+           </div>`
+        : `<div class="form-group">
+             <label>Discount Code</label>
+             <div style="display:flex;gap:8px;">
+               <input type="text" id="couponInput" placeholder="Enter a code" style="flex:1;text-transform:uppercase;" />
+               <button type="button" id="applyCouponBtn" class="btn btn-outline-navy" style="padding:11px 18px;white-space:nowrap;">Apply</button>
+             </div>
+           </div>`}
       <div class="payment-methods">
+        <label class="payment-method-card${m === 'cod' ? ' selected' : ''}">
+          <input type="radio" name="paymentMethod" value="cod" ${m === 'cod' ? 'checked' : ''} />
+          <svg><use href="#ico-cash"/></svg>
+          <div><strong>Cash on Delivery</strong><span>Pay in cash when your order arrives</span></div>
+        </label>
         <label class="payment-method-card${m === 'mobile_money' ? ' selected' : ''}">
           <input type="radio" name="paymentMethod" value="mobile_money" ${m === 'mobile_money' ? 'checked' : ''} />
           <svg><use href="#ico-phone"/></svg>
@@ -260,14 +475,9 @@ function step3Html(total) {
           <svg><use href="#ico-card"/></svg>
           <div><strong>Card</strong><span>Visa / Mastercard</span></div>
         </label>
-        <label class="payment-method-card${m === 'cod' ? ' selected' : ''}">
-          <input type="radio" name="paymentMethod" value="cod" ${m === 'cod' ? 'checked' : ''} />
-          <svg><use href="#ico-cash"/></svg>
-          <div><strong>Cash on Delivery</strong><span>Pay in cash when your order arrives</span></div>
-        </label>
       </div>
       <button type="button" class="btn btn-primary" id="placeOrderBtn" style="width:100%;justify-content:center;margin-top:20px;">
-        ${m === 'cod' ? 'Place Order — Pay on Delivery' : 'Pay ' + formatUGX(total)}
+        ${m === 'cod' ? 'Place Order — Pay on Delivery' : 'Pay ' + formatUGX(discounted)}
       </button>
       <div class="checkout-trust-note">
         <svg><use href="#ico-shield"/></svg>
@@ -277,6 +487,16 @@ function step3Html(total) {
 }
 
 function bindStepEvents() {
+  const applyCouponBtn = document.getElementById('applyCouponBtn');
+  if (applyCouponBtn) applyCouponBtn.addEventListener('click', applyCoupon);
+  const couponInput = document.getElementById('couponInput');
+  if (couponInput) couponInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); applyCoupon(); } });
+  const removeCouponBtn = document.getElementById('removeCouponBtn');
+  if (removeCouponBtn) removeCouponBtn.addEventListener('click', () => {
+    checkout.coupon = null;
+    renderCheckoutSidebar();
+  });
+
   const signOutBtn = document.getElementById('checkoutSignOutBtn');
   if (signOutBtn) {
     signOutBtn.addEventListener('click', async () => {
@@ -530,7 +750,8 @@ async function handlePlaceOrder() {
   }
 
   const btn = document.getElementById('placeOrderBtn');
-  const total = cartTotal();
+  const subtotal = cartTotal();
+  const total = discountedTotal();
   const originalLabel = btn.textContent;
   btn.disabled = true;
   btn.textContent = 'Placing order...';
@@ -549,8 +770,10 @@ async function handlePlaceOrder() {
       delivery_lat: customer.lat != null ? customer.lat : null,
       delivery_lng: customer.lng != null ? customer.lng : null,
       notes: customer.notes || null,
-      subtotal: total,
+      subtotal: subtotal,
       total: total,
+      coupon_code: checkout.coupon ? checkout.coupon.code : null,
+      discount_amount: checkout.coupon ? checkout.coupon.discountAmount : 0,
       currency: 'UGX',
       status: 'pending',
       payment_provider: method === 'cod' ? 'cod' : 'flutterwave',
@@ -578,8 +801,10 @@ async function handlePlaceOrder() {
     sessionStorage.setItem('ndet_last_order', JSON.stringify({
       ref: txRef,
       items: cart.map(i => ({ name: i.name, qty: i.qty, price: i.price })),
-      subtotal: total,
+      subtotal: subtotal,
       total: total,
+      couponCode: checkout.coupon ? checkout.coupon.code : null,
+      discountAmount: checkout.coupon ? checkout.coupon.discountAmount : 0,
       currency: 'UGX',
       method: method,
       customerName: customer.name,
@@ -605,7 +830,7 @@ async function handlePlaceOrder() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ order_id: order.id }),
       }).catch(() => {});
-      clearCart();
+      clearCart(); checkout.coupon = null;
       window.location.href = '/order-confirmed/?ref=' + encodeURIComponent(txRef) + '&method=cod';
       return;
     }
@@ -639,7 +864,7 @@ async function handlePlaceOrder() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ order_id: order.id }),
         }).catch(() => {});
-        clearCart();
+        clearCart(); checkout.coupon = null;
         window.location.href = '/order-confirmed/?ref=' + encodeURIComponent(txRef);
       },
       onclose: function () {
@@ -655,22 +880,51 @@ async function handlePlaceOrder() {
 }
 
 async function initCheckout() {
-  const { data: { session } } = await supabaseClient.auth.getSession();
-  if (session) {
-    checkout.loggedInUser = session.user;
-    const { data: profile } = await supabaseClient.from('profiles').select('full_name, phone').eq('id', session.user.id).single();
-    const { data: addresses } = await supabaseClient.from('addresses').select('*').eq('customer_id', session.user.id).order('is_default', { ascending: false });
-    checkout.savedAddresses = addresses || [];
-    const defaultAddress = checkout.savedAddresses.find(a => a.is_default) || checkout.savedAddresses[0];
-    checkout.customer = {
-      name: (profile && profile.full_name) || '',
-      phone: (profile && profile.phone) || '',
-      email: session.user.email,
-      address: defaultAddress ? defaultAddress.address_text : '',
-      notes: '',
-    };
-    checkout.emailVerified = true;
+  try {
+    // Before anything else: if this is a signed-in customer whose cart lives
+    // on another device (or was empty locally), pull it down so the very
+    // first render on this page already shows the right items.
+    await hydrateCartFromServer();
+
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (session) {
+      checkout.loggedInUser = session.user;
+      const meta = session.user.user_metadata || {};
+
+      // maybeSingle (not single) — a profile row with no name/phone saved
+      // yet must fall through to the signup metadata below, not throw and
+      // skip prefilling entirely.
+      let profile = null;
+      try {
+        const { data } = await supabaseClient.from('profiles').select('full_name, phone').eq('id', session.user.id).maybeSingle();
+        profile = data;
+      } catch {
+        // fall through to signup metadata below
+      }
+
+      let addresses = [];
+      try {
+        const { data } = await supabaseClient.from('addresses').select('*').eq('customer_id', session.user.id).order('is_default', { ascending: false });
+        addresses = data || [];
+      } catch {
+        // no saved addresses available — not fatal, checkout still works
+      }
+      checkout.savedAddresses = addresses;
+      const defaultAddress = checkout.savedAddresses.find(a => a.is_default) || checkout.savedAddresses[0];
+
+      checkout.customer = {
+        name: (profile && profile.full_name) || meta.full_name || '',
+        phone: (profile && profile.phone) || meta.phone || '',
+        email: session.user.email,
+        address: defaultAddress ? defaultAddress.address_text : '',
+        notes: '',
+      };
+      checkout.emailVerified = true;
+    }
+  } catch {
+    // Not critical — falls back to the guest checkout flow if this fails.
   }
+  await loadCartStockInfo();
   renderCart();
 }
 
