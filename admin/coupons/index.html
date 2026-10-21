@@ -130,11 +130,16 @@
     let editingId = null;
 
     (async function guard() {
-      const { data: { session } } = await supabaseClient.auth.getSession();
+      const { data: { session } } = await supabaseAuthClient.auth.getSession();
       if (!session) { window.location.href = '/admin/login/'; return; }
-      const { data: profile } = await supabaseClient.from('profiles').select('is_admin, role').eq('id', session.user.id).maybeSingle();
+      const { data: profile, error: profileError } = await supabaseClient.from('profiles').select('is_admin, role').eq('id', session.user.id).maybeSingle();
+      if (profileError) {
+        console.error('Admin guard: profile lookup failed:', profileError);
+        showToast('Could not verify admin access: ' + profileError.message, 'error');
+        return;
+      }
       if (!profile || !profile.is_admin) {
-        await supabaseClient.auth.signOut();
+        await supabaseAuthClient.auth.signOut();
         window.location.href = '/admin/login/';
         return;
       }
@@ -142,8 +147,8 @@
     })();
 
     document.getElementById('signOutBtn').addEventListener('click', async () => {
-      await supabaseClient.auth.signOut();
-      window.location.href = '/admin/login/';
+      await supabaseAuthClient.auth.signOut();
+      window.location.href = '/';
     });
 
     function ugx(n) { return 'UGX ' + Number(n).toLocaleString('en-UG'); }

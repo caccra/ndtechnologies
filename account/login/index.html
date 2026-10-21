@@ -37,6 +37,7 @@
     <li><a href="/shop/" data-nav="shop">Shop</a></li>
     <li><a href="/about/" data-nav="about">About</a></li>
     <li><a href="/contact/" data-nav="contact">Contact</a></li>
+    <li><a href="/faq/" data-nav="faq">FAQ</a></li>
   </ul>
   <div class="nav-right">
     <a href="/account/" class="account-icon-link" aria-label="Account"><svg><use href="#ico-user"/></svg><span class="account-name"></span></a>
@@ -57,6 +58,7 @@
   <a href="/shop/" data-nav="shop">Shop</a>
   <a href="/about/" data-nav="about">About</a>
   <a href="/contact/" data-nav="contact">Contact</a>
+  <a href="/faq/" data-nav="faq">FAQ</a>
   <a href="/account/">My Account</a>
   <a href="/cart/">Cart (<span data-cart-count style="display:inline">0</span>)</a>
   <a href="/account/" class="btn btn-primary">My Account</a>
@@ -69,6 +71,18 @@
       <h3 style="text-align:center;">Log In</h3>
       <p style="text-align:center;">Access your order history and account details.</p>
       <div class="admin-error" id="loginError" style="display:none;background:#FCE8E4;color:#B0301A;border-radius:var(--radius);padding:11px 14px;font-size:13px;margin-bottom:16px;"></div>
+
+      <button type="button" class="btn-oauth" id="googleBtn">
+        <svg viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.9 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.1 8 3.1l5.7-5.7C34.5 6.5 29.5 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.5 15.1 18.9 12 24 12c3.1 0 5.9 1.1 8 3.1l5.7-5.7C34.5 6.5 29.5 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.5-5.2l-6.2-5.2C29.2 35.2 26.7 36 24 36c-5.2 0-9.6-3.1-11.3-7.6l-6.5 5C9.6 39.6 16.3 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.3-4.1 5.6l6.2 5.2C39.9 36.9 44 31 44 24c0-1.3-.1-2.7-.4-3.5z"/></svg>
+        Continue with Google
+      </button>
+      <button type="button" class="btn-oauth" id="facebookBtn">
+        <svg viewBox="0 0 24 24"><path fill="#1877F2" d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+        Continue with Facebook
+      </button>
+
+      <div class="or-divider">or</div>
+
       <form id="loginForm">
         <div class="form-group"><label>Email</label><input type="email" id="email" required autocomplete="username" /></div>
         <div class="form-group"><label>Password</label><input type="password" id="password" required autocomplete="current-password" /></div>
@@ -87,6 +101,7 @@
 <footer style="margin-top:0;">
   <div class="footer-bottom" style="border-top:none;padding-top:0;">
     <span>© <span id="copyrightYears">2021–2026</span> ND Electronic Technologies Ltd. All rights reserved.</span>
+    <span class="footer-legal-links"><a href="/privacy/">Privacy Policy</a> · <a href="/terms/">Terms of Service</a> · <a href="/refund-policy/">Refund Policy</a></span>
     <span>Lukuli, Nanganda — Kampala, Uganda</span>
   </div>
 </footer>
@@ -98,15 +113,58 @@
 <script src="/assets/script.js" defer></script>
 <script src="/assets/cart.js"></script>
 <script src="/assets/supabase-config.js"></script>
+<script src="/assets/clerk-config.js"></script>
 <script>
+  /* Hand-rolled sign-in form (email+password on one screen, plus Google/
+     Facebook) against Clerk's SignIn object directly, instead of the mounted
+     <SignIn/> widget — the widget only ever asks for the identifier first and
+     shows password on a second screen, which isn't what this page wants.
+     Uses Clerk's classic SignIn API (signIn.create / attemptFirstFactor /
+     setActive) — see account/forgot-password/ and account/sso-callback/ for
+     the matching flows built the same way. */
+  let clerk = null;
+  const params = new URLSearchParams(window.location.search);
+  const redirect = params.get('redirect') || '/account/';
+  const errorBox = document.getElementById('loginError');
+
+  function showError(err, fallback) {
+    const msg = err && err.errors && err.errors[0] && (err.errors[0].longMessage || err.errors[0].message);
+    errorBox.textContent = msg || fallback;
+    errorBox.style.display = 'block';
+  }
+
   (async function () {
-    const { data: { session } } = await supabaseClient.auth.getSession();
-    if (session) window.location.href = '/account/';
+    try {
+      clerk = await loadClerk();
+    } catch (err) {
+      console.error('Clerk failed to load:', err);
+      showError(null, 'Could not load the login form. Please refresh, or call/WhatsApp us on 0704 399665.');
+      return;
+    }
+    if (clerk.user) {
+      window.location.href = redirect;
+      return;
+    }
+
+    document.getElementById('googleBtn').addEventListener('click', () => startOAuth('oauth_google'));
+    document.getElementById('facebookBtn').addEventListener('click', () => startOAuth('oauth_facebook'));
   })();
+
+  async function startOAuth(strategy) {
+    errorBox.style.display = 'none';
+    try {
+      await clerk.client.signIn.authenticateWithRedirect({
+        strategy,
+        redirectUrl: '/account/sso-callback/',
+        redirectUrlComplete: redirect,
+      });
+    } catch (err) {
+      showError(err, 'Could not start sign-in. Please try again.');
+    }
+  }
 
   document.getElementById('loginForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const errorBox = document.getElementById('loginError');
     errorBox.style.display = 'none';
     const btn = document.getElementById('loginBtn');
     btn.disabled = true;
@@ -114,19 +172,28 @@
 
     const email = document.getElementById('email').value.trim();
     const password = document.getElementById('password').value;
-    const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+
+    try {
+      const result = await clerk.client.signIn.create({ identifier: email, password });
+
+      if (result.status === 'complete') {
+        await clerk.setActive({ session: result.createdSessionId });
+        await claimPendingOrder();
+        window.location.href = redirect;
+        return;
+      }
+
+      if (result.status === 'needs_second_factor') {
+        showError(null, "This account has extra verification turned on that isn't supported here yet — please contact us for help signing in.");
+      } else {
+        showError(null, 'Could not log you in. Please check your details and try again.');
+      }
+    } catch (err) {
+      showError(err, 'Invalid email or password.');
+    }
 
     btn.disabled = false;
     btn.textContent = 'Log In';
-
-    if (error) {
-      errorBox.textContent = error.message;
-      errorBox.style.display = 'block';
-      return;
-    }
-    await claimPendingOrder();
-    const redirect = new URLSearchParams(window.location.search).get('redirect');
-    window.location.href = redirect || '/account/';
   });
 </script>
 </body>

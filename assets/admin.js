@@ -24,8 +24,12 @@ function showToast(message, type) {
 }
 
 // Promise<boolean> — resolves true if the user confirms, false on cancel/backdrop click.
-function confirmDialog(message, confirmLabel) {
+// `danger` styles the confirm button red for destructive actions (the default,
+// since most callers are a delete) — pass `false` for a neutral confirmation
+// like a bulk status change, where a red "Delete"-style button would be misleading.
+function confirmDialog(message, confirmLabel, danger) {
   confirmLabel = confirmLabel || 'Delete';
+  if (danger === undefined) danger = true;
   return new Promise((resolve) => {
     const overlay = document.createElement('div');
     overlay.className = 'admin-modal-overlay';
@@ -34,7 +38,7 @@ function confirmDialog(message, confirmLabel) {
         <p>${String(message)}</p>
         <div class="admin-modal-actions">
           <button type="button" class="btn btn-outline-navy" data-choice="cancel">Cancel</button>
-          <button type="button" class="btn btn-primary" data-choice="confirm" style="background:#B0301A;border-color:#B0301A;">${confirmLabel}</button>
+          <button type="button" class="btn btn-primary" data-choice="confirm"${danger ? ' style="background:#B0301A;border-color:#B0301A;"' : ''}>${confirmLabel}</button>
         </div>
       </div>`;
     document.body.appendChild(overlay);

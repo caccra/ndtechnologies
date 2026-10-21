@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Product — ND Electronic Technologies Ltd</title>
 <meta name="description" content="Shop products from ND Electronic Technologies Ltd — CCTV kits, solar equipment, fire extinguishers and more, delivered in Kampala, Uganda." />
-<meta name="robots" content="index, follow" />
+<meta name="robots" content="noindex, follow" />
 <link rel="canonical" id="canonicalLink" href="https://ndelectronictechnologies.com/shop/" />
 <link rel="icon" href="/favicon.ico" sizes="any" />
 <link rel="icon" type="image/png" href="/assets/images/favicon-32x32.png" sizes="32x32" />
@@ -45,6 +45,7 @@
     <li><a href="/shop/" data-nav="shop">Shop</a></li>
     <li><a href="/about/" data-nav="about">About</a></li>
     <li><a href="/contact/" data-nav="contact">Contact</a></li>
+    <li><a href="/faq/" data-nav="faq">FAQ</a></li>
   </ul>
   <div class="nav-right">
     <a href="/account/" class="account-icon-link" aria-label="Account"><svg><use href="#ico-user"/></svg><span class="account-name"></span></a>
@@ -65,6 +66,7 @@
   <a href="/shop/" data-nav="shop">Shop</a>
   <a href="/about/" data-nav="about">About</a>
   <a href="/contact/" data-nav="contact">Contact</a>
+  <a href="/faq/" data-nav="faq">FAQ</a>
   <a href="/account/">My Account</a>
   <a href="/cart/">Cart (<span data-cart-count style="display:inline">0</span>)</a>
   <a href="/account/" class="btn btn-primary">My Account</a>
@@ -133,6 +135,7 @@
   </div>
   <div class="footer-bottom">
     <span>© <span id="copyrightYears">2021–2026</span> ND Electronic Technologies Ltd. All rights reserved.</span>
+    <span class="footer-legal-links"><a href="/privacy/">Privacy Policy</a> · <a href="/terms/">Terms of Service</a> · <a href="/refund-policy/">Refund Policy</a></span>
     <span>Lukuli, Nanganda — Kampala, Uganda</span>
   </div>
 </footer>
@@ -149,7 +152,7 @@
   "telephone": "+256-704-399665",
   "email": "info@ndelectronictechnologies.com",
   "priceRange": "$$",
-  "address": { "@type": "PostalAddress", "streetAddress": "BNK Building, 2nd Floor, Lukuli–Nanganda Road", "addressLocality": "Kampala", "addressRegion": "Makindye Division", "addressCountry": "UG" },
+  "address": { "@type": "PostalAddress", "streetAddress": "BNK Building, 2nd Floor, Lukuli-Nanganda Road", "addressLocality": "Kampala", "addressRegion": "Makindye Division", "addressCountry": "UG" },
   "geo": { "@type": "GeoCoordinates", "latitude": 0.2778334, "longitude": 32.6013482 },
   "sameAs": ["https://www.facebook.com/cctvcamerass/", "https://www.tiktok.com/@ndelectrictechnologies", "https://www.instagram.com/carports_uganda_ltd/"]
 }
@@ -161,6 +164,7 @@
 <script src="/assets/script.js" defer></script>
 <script src="/assets/cart.js"></script>
 <script src="/assets/supabase-config.js"></script>
+<script src="/assets/clerk-config.js"></script>
 <script src="/assets/wishlist.js"></script>
 <script>
   let currentProduct = null;
@@ -178,6 +182,7 @@
     currentProduct = { ...data, id: String(data.id) };
     document.getElementById('crumbName').textContent = data.name;
     document.title = data.name + ' — ND Electronic Technologies Ltd';
+    const onSale = data.sale_price != null && Number(data.sale_price) < Number(data.price);
 
     // This interactive page (cart, quantity picker, reviews, wishlist) lives
     // at ?id=... — but the URL search/AI crawlers should actually index is
@@ -187,7 +192,8 @@
     // Every crawler-facing reference below points there, not at this URL.
     const pageUrl = 'https://ndelectronictechnologies.com/product/?id=' + data.id;
     const canonicalUrl = 'https://ndelectronictechnologies.com/product/' + data.id + '/';
-    const ogDesc = (data.description || '').slice(0, 200);
+    const rawDesc = (data.description || '').replace(/\s+/g, ' ').trim();
+    const ogDesc = rawDesc.length > 160 ? rawDesc.slice(0, 160).replace(/\s+\S*$/, '') + '…' : rawDesc;
     document.getElementById('canonicalLink').href = canonicalUrl;
     document.querySelector('meta[name="description"]').setAttribute('content', ogDesc);
     document.getElementById('ogTitle').setAttribute('content', data.name + ' — ND Electronic Technologies Ltd');
@@ -209,7 +215,7 @@
       offers: {
         '@type': 'Offer',
         priceCurrency: 'UGX',
-        price: data.price,
+        price: onSale ? data.sale_price : data.price,
         availability: data.stock > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
         url: canonicalUrl,
         seller: { '@type': 'Organization', name: 'ND Electronic Technologies Ltd' }
@@ -233,7 +239,6 @@
     // Cover image first, then any additional gallery shots — deduped in case
     // the cover was also included in image_urls by mistake.
     const gallery = [...new Set([data.image_url, ...(Array.isArray(data.image_urls) ? data.image_urls : [])].filter(Boolean))];
-    const onSale = data.sale_price != null && Number(data.sale_price) < Number(data.price);
 
     wrap.innerHTML = `
       <div class="product-detail-grid">
@@ -287,7 +292,7 @@
           </a>
           <div class="product-delivery-note">
             <svg style="width:16px;height:16px;flex-shrink:0;"><use href="#ico-clock"/></svg>
-            Delivery: 1–3 working days across Kampala, arranged once your order's confirmed. Cash on Delivery, Mobile Money or Card.
+            Delivery: 1–3 working days across Kampala, arranged once your order's confirmed. Cash on Delivery.
           </div>
         </div>
       </div>
@@ -436,8 +441,8 @@
 
   async function loadReviews() {
     const wrap = document.getElementById('reviewsWrap');
-    const { data: { session } } = await supabaseClient.auth.getSession();
-    reviewUser = session ? session.user : null;
+    try { await loadClerk(); } catch { /* falls back to logged-out state below */ }
+    reviewUser = await getCurrentCustomer();
 
     const { data: reviews, error } = await supabaseClient
       .from('reviews')

@@ -1,15 +1,21 @@
 // ND Electronic Technologies Ltd — order email notifications
 //
-// Sends two kinds of email through Resend:
+// Sends three kinds of email through Resend:
 //   1. A customer confirmation, once the order is actually confirmed
 //      (Cash on Delivery orders: immediately; card/mobile money orders:
 //      once payment status flips to "paid").
 //   2. An admin "new order" alert, once per order, the first time this
 //      function ever sees it — so staff know to start preparing it even
 //      before an online payment clears.
+//   3. A "your order is now ..." status-update email, to BOTH the customer
+//      and ADMIN_NOTIFY_EMAIL (which should include sales@ndelectronictechnologies.com),
+//      every time the order's status actually changes to In Progress,
+//      Dispatched, Delivered, Failed or Cancelled — the operational stages
+//      that happen after the initial order/payment confirmation above.
 //
 // How it gets called (either path works, and both are safe to fire
-// together — see the *_sent_at idempotency guards below):
+// together — see the *_sent_at / last_notified_status idempotency guards
+// below, which make every call safe to repeat with no duplicate emails):
 //   - A Supabase Database Webhook on `orders` (INSERT and UPDATE) — the
 //     reliable path, since it runs server-side regardless of what the
 //     customer's browser does. Set this up in the Supabase dashboard,
@@ -17,7 +23,10 @@
 //   - A client-side fallback call from assets/checkout.js right after an
 //     order is created (COD) or right after payment verification succeeds
 //     (card/mobile money) — works immediately with no dashboard setup,
-//     but is skipped if the customer closes the tab first.
+//     but is skipped if the customer closes the tab first. The same
+//     fallback call fires from admin/orders/index.html whenever staff
+//     change an order's status, and from account/index.html when a
+//     customer cancels their own pending order.
 //
 // Deploy with the Supabase CLI:
 //   supabase functions deploy send-order-notifications
@@ -67,7 +76,8 @@ Deno.serve(async (req) => {
       .eq('order_id', orderId);
 
     const isConfirmed = order.payment_provider === 'cod' || order.status === 'paid';
-    const results = { admin_sent: false, customer_sent: false };
+    const results: { admin_sent: boolean; customer_sent: boolean; status_update_sent?: string } =
+      { admin_sent: false, customer_sent: false };
 
     // ── Admin "new order" alert — once per order, as soon as it exists ──
     if (!order.admin_email_sent_at) {
@@ -93,6 +103,30 @@ Deno.serve(async (req) => {
       results.customer_sent = true;
     }
 
+    // ── Status update — every real transition into one of these stages,
+    // sent to BOTH the customer and ADMIN_NOTIFY_EMAIL. "pending" and "paid"
+    // are deliberately excluded — those are covered by the admin/customer
+    // emails above, so this covers what happens next.
+    const NOTIFY_STATUSES = ['in_progress', 'dispatched', 'fulfilled', 'failed', 'cancelled'];
+    if (NOTIFY_STATUSES.includes(order.status) && order.status !== order.last_notified_status) {
+      if (order.customer_email) {
+        await sendEmail(RESEND_API_KEY, {
+          from: RESEND_FROM,
+          to: [order.customer_email],
+          subject: `Your order is now ${STATUS_LABELS[order.status] || order.status} — ND Electronic Technologies`,
+          html: statusUpdateEmailHtml(order, items || [], false),
+        });
+      }
+      await sendEmail(RESEND_API_KEY, {
+        from: RESEND_FROM,
+        to: ADMIN_NOTIFY_EMAIL.split(',').map((s) => s.trim()),
+        subject: `Order marked ${STATUS_LABELS[order.status] || order.status} — ${formatUGX(order.total)}`,
+        html: statusUpdateEmailHtml(order, items || [], true),
+      });
+      await supabase.from('orders').update({ last_notified_status: order.status }).eq('id', orderId);
+      results.status_update_sent = order.status;
+    }
+
     return json(results, 200);
   } catch (err) {
     return json({ error: err.message || 'Unexpected error' }, 500);
@@ -114,6 +148,18 @@ async function sendEmail(apiKey: string, payload: Record<string, unknown>) {
 function formatUGX(n: number) {
   return 'UGX ' + Number(n).toLocaleString('en-UG');
 }
+
+// Kept in sync with STATUS_LABELS in admin/orders/index.html and
+// account/index.html — "fulfilled" reads as "Delivered" everywhere now.
+const STATUS_LABELS: Record<string, string> = {
+  pending: 'Pending',
+  paid: 'Paid',
+  in_progress: 'In Progress',
+  dispatched: 'Dispatched',
+  fulfilled: 'Delivered',
+  failed: 'Failed',
+  cancelled: 'Cancelled',
+};
 
 function esc(s: unknown) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as Record<string, string>)[c]);
@@ -140,7 +186,7 @@ function customerEmailHtml(order: Record<string, any>, items: any[]) {
     <p><strong>Total: ${formatUGX(order.total)}</strong> (${methodLabel})</p>
     <p>Delivering to: ${esc(order.delivery_address)}</p>
     ${order.payment_provider === 'cod' ? '<p>Please have the exact amount ready — we\'ll contact you on your phone number to arrange delivery.</p>' : '<p>We\'ll contact you on your phone number to arrange delivery.</p>'}
-    <p style="margin-top:24px;color:#788492;font-size:13px;">ND Electronic Technologies Ltd · Lukuli–Nanganda Road, Kampala, Uganda · 0704 399665</p>
+    <p style="margin-top:24px;color:#788492;font-size:13px;">ND Electronic Technologies Ltd · Lukuli-Nanganda Road, Kampala, Uganda · 0704 399665</p>
   </div>`;
 }
 
@@ -154,6 +200,26 @@ function adminEmailHtml(order: Record<string, any>, items: any[]) {
     <p>Deliver to: ${esc(order.delivery_address)}</p>
     ${order.notes ? `<p>Notes: ${esc(order.notes)}</p>` : ''}
     <p style="margin-top:20px;"><a href="https://ndelectronictechnologies.com/admin/orders/" style="color:#1565c0;">View in Admin Orders →</a></p>
+  </div>`;
+}
+
+function statusUpdateEmailHtml(order: Record<string, any>, items: any[], forAdmin: boolean) {
+  const label = STATUS_LABELS[order.status] || order.status;
+  const heading = forAdmin
+    ? `Order marked ${esc(label)}`
+    : `Hi ${esc(order.customer_name)}, your order is now ${esc(label)}.`;
+  const refLine = forAdmin
+    ? `<p><strong>${esc(order.customer_name)}</strong> · ${esc(order.customer_phone)} · ${esc(order.customer_email || 'no email')}</p>`
+    : `<p>Reference: <strong>${esc(order.payment_tx_ref || order.id)}</strong></p>`;
+  return `
+  <div style="font-family:Arial,sans-serif;color:#1C2321;max-width:520px;margin:0 auto;">
+    <h2 style="color:#0a1628;">${heading}</h2>
+    ${refLine}
+    <table style="width:100%;border-collapse:collapse;margin:16px 0;">${itemsRowsHtml(items)}</table>
+    <p><strong>Total: ${formatUGX(order.total)}</strong></p>
+    <p>Delivering to: ${esc(order.delivery_address)}</p>
+    ${forAdmin ? `<p style="margin-top:20px;"><a href="https://ndelectronictechnologies.com/admin/orders/" style="color:#1565c0;">View in Admin Orders →</a></p>`
+               : `<p style="margin-top:24px;color:#788492;font-size:13px;">Questions about your order? Call or WhatsApp us on 0704 399665. · ND Electronic Technologies Ltd</p>`}
   </div>`;
 }
 

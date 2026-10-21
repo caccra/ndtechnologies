@@ -38,42 +38,68 @@
 <script src="/assets/supabase-config.js"></script>
 <script>
   (async function () {
-    const { data: { session } } = await supabaseClient.auth.getSession();
-    if (session) window.location.href = '/admin/';
+    try {
+      const { data: { session } } = await supabaseAuthClient.auth.getSession();
+      if (session) window.location.href = '/admin/';
+    } catch (err) {
+      // Not fatal — worst case the login form just shows instead of
+      // auto-redirecting a user who was already signed in.
+      console.error('Admin login: session check failed:', err);
+    }
   })();
 
   document.getElementById('loginForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const errorBox = document.getElementById('loginError');
+    const submitBtn = e.target.querySelector('button[type="submit"]');
     errorBox.style.display = 'none';
-    const email = document.getElementById('email').value.trim();
-    const password = document.getElementById('password').value;
-    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
-    if (error) {
-      errorBox.textContent = error.message;
-      errorBox.style.display = 'block';
-      return;
-    }
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Signing in...';
 
-    // Valid credentials don't mean admin — this is the same Auth user pool
-    // as customer accounts. Check the profile flag before letting them in.
-    // maybeSingle (not single) — a missing profile row must show a clear,
-    // distinct message, not throw and fall through to a misleading one.
-    const { data: profile } = await supabaseClient.from('profiles').select('is_admin').eq('id', data.user.id).maybeSingle();
-    if (!profile) {
-      await supabaseClient.auth.signOut();
-      errorBox.textContent = 'No profile record exists for this account yet — run the profiles insert from SETUP.md, then try again.';
-      errorBox.style.display = 'block';
-      return;
-    }
-    if (!profile.is_admin) {
-      await supabaseClient.auth.signOut();
-      errorBox.textContent = 'This account does not have admin access.';
-      errorBox.style.display = 'block';
-      return;
-    }
+    try {
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      const { data, error } = await supabaseAuthClient.auth.signInWithPassword({ email, password });
+      if (error) {
+        errorBox.textContent = error.message;
+        errorBox.style.display = 'block';
+        return;
+      }
 
-    window.location.href = '/admin/';
+      // Valid credentials don't mean admin — this is the same Auth user pool
+      // as customer accounts. Check the profile flag before letting them in.
+      // maybeSingle (not single) — a missing profile row must show a clear,
+      // distinct message, not throw and fall through to a misleading one.
+      const { data: profile, error: profileError } = await supabaseClient.from('profiles').select('is_admin').eq('id', data.user.id).maybeSingle();
+      if (profileError) {
+        console.error('Admin login: profile lookup failed:', profileError);
+        await supabaseAuthClient.auth.signOut();
+        errorBox.textContent = 'Could not verify admin access (' + profileError.message + '). This usually means the database policies need to be re-applied — see SETUP.md.';
+        errorBox.style.display = 'block';
+        return;
+      }
+      if (!profile) {
+        await supabaseAuthClient.auth.signOut();
+        errorBox.textContent = 'No profile record exists for this account yet — run the profiles insert from SETUP.md, then try again.';
+        errorBox.style.display = 'block';
+        return;
+      }
+      if (!profile.is_admin) {
+        await supabaseAuthClient.auth.signOut();
+        errorBox.textContent = 'This account does not have admin access.';
+        errorBox.style.display = 'block';
+        return;
+      }
+
+      window.location.href = '/admin/';
+    } catch (err) {
+      console.error('Admin login failed:', err);
+      errorBox.textContent = 'Something went wrong signing you in (' + (err.message || 'unknown error') + '). Please try again.';
+      errorBox.style.display = 'block';
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Sign In';
+    }
   });
 </script>
 </body>

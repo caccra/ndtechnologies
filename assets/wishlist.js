@@ -1,11 +1,14 @@
 /* ND Electronic Technologies Ltd — shared wishlist helpers (shop grid + product page) */
 
 let WISHLIST_IDS = null;   // Set of product id strings; empty Set when logged out
-let WISHLIST_USER = null;  // Supabase Auth user, or null when logged out
+let WISHLIST_USER = null;  // { id, email, fullName } from getCurrentCustomer() (cart.js), or null when logged out
 
 async function loadWishlistIds() {
-  const { data: { session } } = await supabaseClient.auth.getSession();
-  WISHLIST_USER = session ? session.user : null;
+  // Customer accounts run on Clerk (see SETUP.md section 10) — load it
+  // before checking who's signed in, since getCurrentCustomer() only sees
+  // a Clerk session once window.Clerk is actually loaded.
+  try { await loadClerk(); } catch { /* falls back to logged-out state below */ }
+  WISHLIST_USER = await getCurrentCustomer();
 
   if (!WISHLIST_USER) {
     WISHLIST_IDS = new Set();

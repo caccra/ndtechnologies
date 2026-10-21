@@ -250,6 +250,66 @@ section {
   transform: translateY(-2px);
 }
 
+/* ══════════════════ OAUTH BUTTONS (Clerk custom sign-in form) ══════════════════ */
+.btn-oauth {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 20px;
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--white);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: border-color .2s ease, background .2s ease, transform .15s ease;
+}
+
+.btn-oauth:hover {
+  border-color: var(--ink);
+  background: var(--paper);
+  transform: translateY(-1px);
+}
+
+.btn-oauth:disabled {
+  opacity: .6;
+  cursor: default;
+  transform: none;
+}
+
+.btn-oauth svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.btn-oauth + .btn-oauth {
+  margin-top: 10px;
+}
+
+.or-divider {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 20px 0;
+  color: var(--text-muted);
+  font-size: 12.5px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.or-divider::before,
+.or-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
 /* ══════════════════ NAV ══════════════════ */
 /* ══════════════════ TOPBAR — contact strip above the main nav ══════════════════
    Sits in normal document flow (not fixed) so it scrolls away naturally;
@@ -429,7 +489,7 @@ nav.scrolled {
   background: none;
   border: none;
   cursor: pointer;
-  padding: 14px 12px; /* sole mobile nav trigger — sized to a real ~44px touch target, not just the visible icon */
+  padding: 16px 13px; /* sole mobile nav trigger — sized to a real 48px touch target, not just the visible icon */
 }
 
 .hamburger span {
@@ -1184,6 +1244,27 @@ nav.scrolled {
 .why-panel .btn {
   width: 100%;
   justify-content: center;
+}
+
+.why-panel-col {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  align-self: stretch;
+}
+
+.why-panel-img {
+  flex: 1;
+  min-height: 200px;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.why-panel-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .coverage-tags {
@@ -2779,9 +2860,32 @@ nav.scrolled {
 
 .account-order-item-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
   font-size: 13.5px;
+}
+
+.account-order-review-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  justify-content: flex-end;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--amber-dark);
+  text-decoration: none;
+}
+
+.account-order-review-link svg {
+  width: 13px;
+  height: 13px;
+  fill: currentColor;
+}
+
+.account-order-review-link:hover {
+  text-decoration: underline;
 }
 
 .account-order-item-row img,
@@ -3627,6 +3731,83 @@ footer {
   color: rgba(255, 255, 255, .35);
   flex-wrap: wrap;
   gap: 10px;
+}
+
+.footer-legal-links a {
+  color: rgba(255, 255, 255, .55);
+  text-decoration: none;
+}
+
+.footer-legal-links a:hover {
+  color: var(--white);
+  text-decoration: underline;
+}
+
+/* ══════════════════ LEGAL PAGES (Privacy / Terms / Refund Policy) ══════════════════ */
+.legal-content {
+  max-width: 780px;
+}
+
+.legal-content .updated-note {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 36px;
+}
+
+.legal-content h2 {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -.3px;
+  margin-top: 40px;
+  margin-bottom: 14px;
+}
+
+.legal-content h2:first-of-type {
+  margin-top: 0;
+}
+
+.legal-content h3 {
+  font-size: 15.5px;
+  font-weight: 700;
+  margin-top: 22px;
+  margin-bottom: 8px;
+}
+
+.legal-content p {
+  font-size: 15px;
+  color: var(--text-body);
+  line-height: 1.85;
+  margin-bottom: 14px;
+}
+
+.legal-content ul {
+  margin: 0 0 14px 22px;
+}
+
+.legal-content li {
+  font-size: 15px;
+  color: var(--text-body);
+  line-height: 1.85;
+  margin-bottom: 8px;
+}
+
+.legal-content a {
+  color: var(--amber-dark);
+}
+
+.legal-content strong {
+  color: var(--ink);
+}
+
+.legal-disclaimer {
+  margin-top: 40px;
+  padding: 16px 20px;
+  background: var(--paper);
+  border-left: 3px solid var(--line);
+  border-radius: var(--radius);
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.7;
 }
 
 .reveal {

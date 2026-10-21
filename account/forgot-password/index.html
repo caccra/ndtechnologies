@@ -37,6 +37,7 @@
     <li><a href="/shop/" data-nav="shop">Shop</a></li>
     <li><a href="/about/" data-nav="about">About</a></li>
     <li><a href="/contact/" data-nav="contact">Contact</a></li>
+    <li><a href="/faq/" data-nav="faq">FAQ</a></li>
   </ul>
   <div class="nav-right">
     <a href="/account/" class="account-icon-link" aria-label="Account"><svg><use href="#ico-user"/></svg><span class="account-name"></span></a>
@@ -57,6 +58,7 @@
   <a href="/shop/" data-nav="shop">Shop</a>
   <a href="/about/" data-nav="about">About</a>
   <a href="/contact/" data-nav="contact">Contact</a>
+  <a href="/faq/" data-nav="faq">FAQ</a>
   <a href="/account/">My Account</a>
   <a href="/cart/">Cart (<span data-cart-count style="display:inline">0</span>)</a>
   <a href="/account/" class="btn btn-primary">My Account</a>
@@ -67,12 +69,20 @@
     <div class="contact-form-wrap" id="formWrap">
       <div class="eyebrow" style="justify-content:center;display:flex;">Account Recovery</div>
       <h3 style="text-align:center;">Reset Your Password</h3>
-      <p style="text-align:center;">Enter your email and we'll send you a reset link.</p>
+      <p style="text-align:center;" id="formIntro">Enter your email and we'll send you a reset code.</p>
       <div class="admin-error" id="formError" style="display:none;background:#FCE8E4;color:#B0301A;border-radius:var(--radius);padding:11px 14px;font-size:13px;margin-bottom:16px;"></div>
-      <form id="resetForm">
+
+      <form id="emailStep">
         <div class="form-group"><label>Email</label><input type="email" id="email" required autocomplete="username" /></div>
-        <button type="submit" class="btn btn-primary" id="resetBtn" style="width:100%;justify-content:center;">Send Reset Link</button>
+        <button type="submit" class="btn btn-primary" id="emailBtn" style="width:100%;justify-content:center;">Send Reset Code</button>
       </form>
+
+      <form id="codeStep" style="display:none;">
+        <div class="form-group"><label>6-Digit Code</label><input type="text" id="code" inputmode="numeric" autocomplete="one-time-code" required /></div>
+        <div class="form-group"><label>New Password</label><input type="password" id="newPassword" required minlength="6" autocomplete="new-password" /></div>
+        <button type="submit" class="btn btn-primary" id="codeBtn" style="width:100%;justify-content:center;">Set New Password</button>
+      </form>
+
       <p style="text-align:center;margin-top:18px;font-size:13.5px;">
         <a href="/account/login/">Back to Log In</a>
       </p>
@@ -83,6 +93,7 @@
 <footer style="margin-top:0;">
   <div class="footer-bottom" style="border-top:none;padding-top:0;">
     <span>© <span id="copyrightYears">2021–2026</span> ND Electronic Technologies Ltd. All rights reserved.</span>
+    <span class="footer-legal-links"><a href="/privacy/">Privacy Policy</a> · <a href="/terms/">Terms of Service</a> · <a href="/refund-policy/">Refund Policy</a></span>
     <span>Lukuli, Nanganda — Kampala, Uganda</span>
   </div>
 </footer>
@@ -94,33 +105,88 @@
 <script src="/assets/script.js" defer></script>
 <script src="/assets/cart.js"></script>
 <script src="/assets/supabase-config.js"></script>
+<script src="/assets/clerk-config.js"></script>
 <script>
-  document.getElementById('resetForm').addEventListener('submit', async (e) => {
+  /* Two-step reset against Clerk's SignIn object directly (reset_password_email_code
+     strategy) — matches the hand-rolled sign-in on account/login/. Step 1 sends a
+     6-digit code to the email; step 2 verifies it and sets the new password in the
+     same call, then signs the user straight in. */
+  let clerk = null;
+  let pendingEmail = '';
+  const errorBox = document.getElementById('formError');
+
+  function showError(err, fallback) {
+    const msg = err && err.errors && err.errors[0] && (err.errors[0].longMessage || err.errors[0].message);
+    errorBox.textContent = msg || fallback;
+    errorBox.style.display = 'block';
+  }
+
+  (async function () {
+    try {
+      clerk = await loadClerk();
+    } catch (err) {
+      console.error('Clerk failed to load:', err);
+      showError(null, 'Could not load this page. Please refresh, or call/WhatsApp us on 0704 399665.');
+      document.getElementById('emailBtn').disabled = true;
+    }
+  })();
+
+  document.getElementById('emailStep').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const errorBox = document.getElementById('formError');
     errorBox.style.display = 'none';
-    const btn = document.getElementById('resetBtn');
+    const btn = document.getElementById('emailBtn');
     btn.disabled = true;
     btn.textContent = 'Sending...';
 
-    const email = document.getElementById('email').value.trim();
-    const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin + '/account/reset-password/',
-    });
+    pendingEmail = document.getElementById('email').value.trim();
 
-    if (error) {
-      btn.disabled = false;
-      btn.textContent = 'Send Reset Link';
-      errorBox.textContent = error.message;
-      errorBox.style.display = 'block';
-      return;
+    try {
+      await clerk.client.signIn.create({
+        strategy: 'reset_password_email_code',
+        identifier: pendingEmail,
+      });
+      document.getElementById('emailStep').style.display = 'none';
+      document.getElementById('codeStep').style.display = 'block';
+      document.getElementById('formIntro').textContent = 'Enter the code we sent to ' + pendingEmail + ', and choose a new password.';
+    } catch (err) {
+      showError(err, 'Could not send a reset code. Please check the email and try again.');
     }
 
-    document.getElementById('formWrap').innerHTML =
-      '<div class="eyebrow" style="justify-content:center;display:flex;">Check Your Email</div>' +
-      '<h3 style="text-align:center;">Reset link sent</h3>' +
-      '<p style="text-align:center;">If an account exists for that email, a password reset link is on its way. Click it to set a new password.</p>' +
-      '<p style="text-align:center;margin-top:18px;font-size:13.5px;"><a href="/account/login/">Back to Log In</a></p>';
+    btn.disabled = false;
+    btn.textContent = 'Send Reset Code';
+  });
+
+  document.getElementById('codeStep').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errorBox.style.display = 'none';
+    const btn = document.getElementById('codeBtn');
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+
+    const code = document.getElementById('code').value.trim();
+    const password = document.getElementById('newPassword').value;
+
+    try {
+      const result = await clerk.client.signIn.attemptFirstFactor({
+        strategy: 'reset_password_email_code',
+        code,
+        password,
+      });
+
+      if (result.status === 'complete') {
+        await clerk.setActive({ session: result.createdSessionId });
+        await claimPendingOrder();
+        window.location.href = '/account/';
+        return;
+      }
+
+      showError(null, 'That code is invalid or expired. Please try again.');
+    } catch (err) {
+      showError(err, 'That code is invalid or expired. Please try again.');
+    }
+
+    btn.disabled = false;
+    btn.textContent = 'Set New Password';
   });
 </script>
 </body>

@@ -53,7 +53,7 @@
       <button class="admin-filter-tab" data-status="paid">Paid</button>
       <button class="admin-filter-tab" data-status="in_progress">In Progress</button>
       <button class="admin-filter-tab" data-status="dispatched">Dispatched</button>
-      <button class="admin-filter-tab" data-status="fulfilled">Fulfilled</button>
+      <button class="admin-filter-tab" data-status="fulfilled">Delivered</button>
       <button class="admin-filter-tab" data-status="failed">Failed</button>
       <button class="admin-filter-tab" data-status="cancelled">Cancelled</button>
     </div>
@@ -72,7 +72,7 @@
         <option value="" disabled selected>Mark selected as…</option>
         <option value="in_progress">In Progress</option>
         <option value="dispatched">Dispatched</option>
-        <option value="fulfilled">Fulfilled / Complete</option>
+        <option value="fulfilled">Delivered</option>
         <option value="failed">Failed</option>
         <option value="cancelled">Cancelled</option>
       </select>
@@ -100,15 +100,20 @@
 <script>initGlobalSearch(supabaseClient);</script>
 <script>
   (async function guard() {
-    const { data: { session } } = await supabaseClient.auth.getSession();
+    const { data: { session } } = await supabaseAuthClient.auth.getSession();
     if (!session) { window.location.href = '/admin/login/'; return; }
     // Session alone isn't enough — any registered customer has one. Confirm
     // this account is actually flagged admin before showing anything here;
     // RLS blocks the real data either way, but a non-admin shouldn't even
     // see the dashboard shell.
-    const { data: profile } = await supabaseClient.from('profiles').select('is_admin, role').eq('id', session.user.id).maybeSingle();
+    const { data: profile, error: profileError } = await supabaseClient.from('profiles').select('is_admin, role').eq('id', session.user.id).maybeSingle();
+    if (profileError) {
+      console.error('Admin guard: profile lookup failed:', profileError);
+      showToast('Could not verify admin access: ' + profileError.message, 'error');
+      return;
+    }
     if (!profile || !profile.is_admin) {
-      await supabaseClient.auth.signOut();
+      await supabaseAuthClient.auth.signOut();
       window.location.href = '/admin/login/';
       return;
     }
@@ -120,11 +125,28 @@
   })();
 
   document.getElementById('signOutBtn').addEventListener('click', async () => {
-    await supabaseClient.auth.signOut();
-    window.location.href = '/admin/login/';
+    await supabaseAuthClient.auth.signOut();
+    window.location.href = '/';
   });
 
   function ugx(n) { return 'UGX ' + Number(n).toLocaleString('en-UG'); }
+
+  // Fire-and-forget trigger for the "your order is now ..." email to the
+  // customer and ADMIN_NOTIFY_EMAIL (sales@) — never blocks the status
+  // update on this, but (unlike a bare `.catch(() => {})`) actually logs a
+  // failure to the console instead of hiding it completely. fetch() only
+  // rejects on a genuine network error; a 404 (function not deployed) or a
+  // 500 (missing Resend/ADMIN_NOTIFY_EMAIL secrets) still resolves
+  // normally, so checking res.ok is the only way to notice those.
+  function notifyOrderStatus(orderId) {
+    fetch(`${SUPABASE_URL}/functions/v1/send-order-notifications`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ order_id: orderId }),
+    }).then(async (res) => {
+      if (!res.ok) console.error('send-order-notifications failed:', res.status, await res.text().catch(() => ''));
+    }).catch((err) => console.error('send-order-notifications network error:', err));
+  }
   function fmtDate(iso) { return new Date(iso).toLocaleString('en-UG', { dateStyle: 'medium', timeStyle: 'short' }); }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
@@ -133,7 +155,7 @@
     paid: 'Paid',
     in_progress: 'In Progress',
     dispatched: 'Dispatched',
-    fulfilled: 'Fulfilled / Complete',
+    fulfilled: 'Delivered',
     failed: 'Failed',
     cancelled: 'Cancelled',
   };
@@ -294,6 +316,7 @@
     // order_events is now populated automatically by a DB trigger on any
     // orders.status change (see schema.sql) — powers the customer
     // dashboard's Inbox without a manual insert here.
+    notifyOrderStatus(orderId);
     return true;
   }
 
@@ -308,7 +331,7 @@
   document.getElementById('bulkApplyBtn').addEventListener('click', async () => {
     const status = document.getElementById('bulkStatusSelect').value;
     if (!status) { showToast('Choose a status to apply first.', 'error'); return; }
-    const ok = await confirmDialog(`Mark ${selectedIds.size} order${selectedIds.size === 1 ? '' : 's'} as ${STATUS_LABELS[status]}?`);
+    const ok = await confirmDialog(`Mark ${selectedIds.size} order${selectedIds.size === 1 ? '' : 's'} as ${STATUS_LABELS[status]}?`, `Mark as ${STATUS_LABELS[status]}`, false);
     if (!ok) return;
     const btn = document.getElementById('bulkApplyBtn');
     btn.disabled = true;

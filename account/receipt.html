@@ -87,20 +87,23 @@
     <div class="slip-foot">Thank you for shopping with us — call or WhatsApp +256 704 399665 with any questions.</div>
   </div>
 
+  <script src="/assets/cart.js"></script>
   <script src="/assets/supabase-config.js"></script>
+  <script src="/assets/clerk-config.js"></script>
   <script>
     function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
     function ugx(n) { return 'UGX ' + Number(n || 0).toLocaleString('en-UG'); }
     const STATUS_LABELS = {
       pending: 'Pending', paid: 'Paid', in_progress: 'In Progress',
-      dispatched: 'Dispatched', fulfilled: 'Fulfilled / Complete',
+      dispatched: 'Dispatched', fulfilled: 'Delivered',
       failed: 'Failed', cancelled: 'Cancelled',
     };
 
     (async function () {
-      const { data: { session } } = await supabaseClient.auth.getSession();
+      try { await loadClerk(); } catch { /* falls back to logged-out state below */ }
+      const customer = await getCurrentCustomer();
       const err = document.getElementById('err');
-      if (!session) { window.location.href = '/account/login/?redirect=' + encodeURIComponent(window.location.pathname + window.location.search); return; }
+      if (!customer) { window.location.href = '/account/login/?redirect=' + encodeURIComponent(window.location.pathname + window.location.search); return; }
 
       const id = new URLSearchParams(window.location.search).get('id');
       if (!id) { err.textContent = 'No order specified.'; err.style.display = 'block'; return; }
@@ -109,7 +112,7 @@
         .from('orders')
         .select('*, order_items(product_name, quantity, unit_price, line_total)')
         .eq('id', id)
-        .eq('customer_id', session.user.id) // belt-and-suspenders — RLS already scopes this to the caller's own orders
+        .eq('customer_id', customer.id) // belt-and-suspenders — RLS already scopes this to the caller's own orders
         .maybeSingle();
 
       if (error || !o) {

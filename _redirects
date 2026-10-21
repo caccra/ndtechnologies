@@ -1,0 +1,15 @@
+# Deny direct access to repo-internal paths that must never be served.
+# robots.txt only asks crawlers not to index these — it does nothing to stop
+# a direct request, a scraper, or a git-history-dumping tool. This file is
+# the actual access control, honored natively by Netlify and Cloudflare
+# Pages (same hosts _headers already targets — see that file).
+#
+# This is a safety net, not the real fix: the most reliable protection is to
+# simply never publish .git/, scripts/, or supabase/ in the deployed folder
+# at all. If your host lets you set a separate "publish directory" or
+# ignore list, use that instead of relying on these rules alone.
+
+/.git/*       /404.html   404
+/.git         /404.html   404
+/scripts/*    /404.html   404
+/supabase/*   /404.html   404

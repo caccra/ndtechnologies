@@ -2,132 +2,17 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Email Confirmed — ND Electronic Technologies Ltd</title>
-<link rel="canonical" href="https://ndelectronictechnologies.com/account/email-confirmed/" />
+<meta http-equiv="refresh" content="0; url=/account/login/" />
+<title>Redirecting… — ND Electronic Technologies Ltd</title>
 <meta name="robots" content="noindex, follow" />
-<link rel="icon" href="/favicon.ico" sizes="any" />
-<link rel="icon" type="image/png" href="/assets/images/favicon-32x32.png" sizes="32x32" />
-<link rel="icon" type="image/png" href="/assets/images/favicon-192x192.png" sizes="192x192" />
-<link rel="apple-touch-icon" href="/assets/images/apple-touch-icon.png" />
-<meta name="theme-color" content="#0a1628" />
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Poppins:wght@500;600;700&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="/assets/styles.css" />
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link rel="canonical" href="https://ndelectronictechnologies.com/account/login/" />
 </head>
-<body data-page="account">
-
-<div class="topbar">
-  <div class="topbar-right-bg"></div>
-  <div class="topbar-inner">
-    <div class="topbar-left">
-      <a href="tel:+256704399665"><svg><use href="#ico-phone"/></svg> 0704 399665 / 0773 270782</a>
-      <a href="mailto:info@ndelectronictechnologies.com"><svg><use href="#ico-mail"/></svg> info@ndelectronictechnologies.com / ndtechnologiesltd@gmail.com</a>
-    </div>
-    <div class="topbar-right"><svg><use href="#ico-clock"/></svg> Mon &ndash; Sat 8:00am &ndash; 7:00pm</div>
-  </div>
-</div>
-<nav id="navbar">
-  <a href="/" class="brand" id="navBrand"></a>
-  <ul class="nav-links">
-    <li><a href="/" data-nav="home">Home</a></li>
-    <li><a href="/services/" data-nav="services">Services</a></li>
-    <li><a href="/shop/" data-nav="shop">Shop</a></li>
-    <li><a href="/about/" data-nav="about">About</a></li>
-    <li><a href="/contact/" data-nav="contact">Contact</a></li>
-  </ul>
-  <div class="nav-right">
-    <a href="/account/" class="account-icon-link" aria-label="Account"><svg><use href="#ico-user"/></svg><span class="account-name"></span></a>
-    <a href="/cart/" class="cart-icon-link" aria-label="Cart">
-      <svg viewBox="0 0 24 24" fill="none"><path d="M3 4h2l2.4 12.2a2 2 0 0 0 2 1.8h7.6a2 2 0 0 0 2-1.6L21 8H6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="10" cy="21" r="1.4" fill="currentColor"/><circle cx="17" cy="21" r="1.4" fill="currentColor"/></svg>
-      <span class="cart-badge" data-cart-count>0</span>
-    </a>
-    <a href="/account/" class="btn btn-primary" style="padding:11px 20px;font-size:13.5px;">My Account</a>
-  </div>
-  <button class="hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false">
-    <span></span><span></span><span></span>
-  </button>
-</nav>
-
-<div class="mobile-menu" id="mobileMenu">
-  <a href="/" data-nav="home">Home</a>
-  <a href="/services/" data-nav="services">Services</a>
-  <a href="/shop/" data-nav="shop">Shop</a>
-  <a href="/about/" data-nav="about">About</a>
-  <a href="/contact/" data-nav="contact">Contact</a>
-  <a href="/account/">My Account</a>
-  <a href="/account/" class="btn btn-primary">My Account</a>
-</div>
-
-<section style="padding-top:140px;padding-bottom:120px;">
-  <div class="container" style="max-width:460px;">
-    <div class="contact-form-wrap" style="text-align:center;" id="confirmWrap">
-      <div class="eyebrow" style="justify-content:center;display:flex;">Almost There</div>
-      <h3>Checking your confirmation…</h3>
-      <p>One moment.</p>
-    </div>
-  </div>
-</section>
-
-<footer style="margin-top:0;">
-  <div class="footer-bottom" style="border-top:none;padding-top:0;">
-    <span>© <span id="copyrightYears">2021–2026</span> ND Electronic Technologies Ltd. All rights reserved.</span>
-    <span>Lukuli, Nanganda — Kampala, Uganda</span>
-  </div>
-</footer>
-
-<a href="https://wa.me/256704399665" class="whatsapp-float" target="_blank" rel="noopener" aria-label="Chat with us on WhatsApp">
-  <svg><use href="#ico-whatsapp"/></svg>
-</a>
-
-<script src="/assets/script.js" defer></script>
-<script src="/assets/cart.js"></script>
-<script src="/assets/supabase-config.js"></script>
-<script>
-  // Supabase's confirmation link verifies the token server-side, then lands
-  // the browser here. Depending on how the project's email flow is
-  // configured, that either (a) establishes a live session right away, or
-  // (b) just marks the account confirmed with no session — this page
-  // handles both, since there's no reliable way to know which in advance.
-  (async function () {
-    const wrap = document.getElementById('confirmWrap');
-
-    // Supabase Auth also uses this same redirect target for other link
-    // types (invite, magic link, password recovery) — surface those
-    // distinctly rather than always claiming "email confirmed".
-    const params = new URLSearchParams(window.location.hash.replace(/^#/, '') || window.location.search);
-    const errorDescription = params.get('error_description');
-
-    if (errorDescription) {
-      wrap.innerHTML = `
-        <div class="eyebrow" style="justify-content:center;display:flex;">Link Problem</div>
-        <h3>This link didn't work</h3>
-        <p>${errorDescription.replace(/[<>&"]/g, '')}</p>
-        <p style="margin-top:18px;"><a href="/account/register/">Try registering again</a> or <a href="/account/login/">log in</a> if you already confirmed a different way.</p>
-      `;
-      return;
-    }
-
-    const { data: { session } } = await supabaseClient.auth.getSession();
-
-    if (session) {
-      wrap.innerHTML = `
-        <div class="eyebrow" style="justify-content:center;display:flex;">All Set</div>
-        <h3>Email confirmed — you're logged in</h3>
-        <p>Your account is ready to go.</p>
-        <a href="/account/" class="btn btn-primary" style="width:100%;justify-content:center;margin-top:18px;">Go to My Account →</a>
-      `;
-    } else {
-      wrap.innerHTML = `
-        <div class="eyebrow" style="justify-content:center;display:flex;">All Set</div>
-        <h3>Your email is confirmed</h3>
-        <p>You can now log in with your email and password.</p>
-        <a href="/account/login/" class="btn btn-primary" style="width:100%;justify-content:center;margin-top:18px;">Go to Login →</a>
-      `;
-    }
-  })();
-</script>
+<body>
+<!-- Email verification now happens inline in the Register page's Clerk sign-up
+     form (a code-entry step, not a link you click from your inbox) — this page
+     no longer needs its own confirmation-landing logic. Kept as a redirect, not
+     deleted, so any already-sent confirmation links still land somewhere useful. -->
+<p>Redirecting to <a href="/account/login/">Log In</a>…</p>
+<script>window.location.replace('/account/login/');</script>
 </body>
 </html>

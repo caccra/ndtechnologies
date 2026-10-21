@@ -19,6 +19,10 @@
     rel="stylesheet" />
   <link rel="stylesheet" href="/assets/styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    #clerk-sign-up { display: flex; justify-content: center; }
+    #clerkLoading { text-align: center; color: var(--text-muted); font-size: 13.5px; padding: 40px 0; }
+  </style>
 </head>
 
 <body data-page="account">
@@ -41,6 +45,7 @@
       <li><a href="/shop/" data-nav="shop">Shop</a></li>
       <li><a href="/about/" data-nav="about">About</a></li>
       <li><a href="/contact/" data-nav="contact">Contact</a></li>
+      <li><a href="/faq/" data-nav="faq">FAQ</a></li>
     </ul>
     <div class="nav-right">
       <a href="/account/" class="account-icon-link" aria-label="Account"><svg>
@@ -68,6 +73,7 @@
     <a href="/shop/" data-nav="shop">Shop</a>
     <a href="/about/" data-nav="about">About</a>
     <a href="/contact/" data-nav="contact">Contact</a>
+    <a href="/faq/" data-nav="faq">FAQ</a>
     <a href="/account/">My Account</a>
     <a href="/cart/">Cart (<span data-cart-count style="display:inline">0</span>)</a>
     <a href="/account/" class="btn btn-primary">My Account</a>
@@ -75,36 +81,15 @@
 
   <section style="padding-top:140px;padding-bottom:120px;">
     <div class="container" style="max-width:460px;">
-      <div class="contact-form-wrap">
-        <div class="eyebrow" style="justify-content:center;display:flex;">Create an Account</div>
-        <h3 style="text-align:center;">Register</h3>
-        <p style="text-align:center;">Track your orders and check out faster next time.</p>
-        <div class="admin-error" id="registerError"
-          style="display:none;background:#FCE8E4;color:#B0301A;border-radius:var(--radius);padding:11px 14px;font-size:13px;margin-bottom:16px;">
-        </div>
-        <form id="registerForm">
-          <div class="form-group"><label>Full Name *</label><input type="text" id="fullName" required /></div>
-          <div class="form-group"><label>Email *</label><input type="email" id="email" required
-              autocomplete="username" /></div>
-          <div class="form-group"><label>Phone Number *</label><input type="tel" id="phone" required
-              placeholder="+256 7__ ___ ___" /></div>
-          <div class="form-group"><label>Password *</label><input type="password" id="password" required minlength="8"
-              autocomplete="new-password" /></div>
-          <div class="form-group"><label>Confirm Password *</label><input type="password" id="confirmPassword" required
-              minlength="8" autocomplete="new-password" /></div>
-          <button type="submit" class="btn btn-primary" id="registerBtn"
-            style="width:100%;justify-content:center;">Create Account</button>
-        </form>
-        <p style="text-align:center;margin-top:18px;font-size:13.5px;">
-          Already have an account? <a href="/account/login/">Log in</a>
-        </p>
-      </div>
+      <div id="clerkLoading">Loading…</div>
+      <div id="clerk-sign-up"></div>
     </div>
   </section>
 
   <footer style="margin-top:0;">
     <div class="footer-bottom" style="border-top:none;padding-top:0;">
       <span>© <span id="copyrightYears">2021–2026</span> ND Electronic Technologies Ltd. All rights reserved.</span>
+      <span class="footer-legal-links"><a href="/privacy/">Privacy Policy</a> · <a href="/terms/">Terms of Service</a> · <a href="/refund-policy/">Refund Policy</a></span>
       <span>Lukuli, Nanganda — Kampala, Uganda</span>
     </div>
   </footer>
@@ -119,66 +104,38 @@
   <script src="/assets/script.js" defer></script>
   <script src="/assets/cart.js"></script>
   <script src="/assets/supabase-config.js"></script>
+  <script src="/assets/clerk-config.js"></script>
   <script>
     (async function () {
-      const { data: { session } } = await supabaseClient.auth.getSession();
-      if (session) window.location.href = '/account/';
+      try {
+        const clerk = await loadClerk();
+        const params = new URLSearchParams(window.location.search);
+        const redirect = params.get('redirect') || '/account/';
+        const prefillEmail = params.get('email') || '';
+
+        if (clerk.user) {
+          window.location.href = redirect;
+          return;
+        }
+
+        document.getElementById('clerkLoading').style.display = 'none';
+        clerk.mountSignUp(document.getElementById('clerk-sign-up'), {
+          afterSignUpUrl: redirect,
+          signInUrl: '/account/login/',
+          initialValues: prefillEmail ? { emailAddress: prefillEmail } : undefined,
+          appearance: {
+            variables: {
+              colorPrimary: '#0d3d85',
+              fontFamily: "'Jost', sans-serif",
+              borderRadius: '10px',
+            },
+          },
+        });
+      } catch (err) {
+        console.error('Clerk failed to load:', err);
+        document.getElementById('clerkLoading').textContent = 'Could not load the registration form. Please refresh, or call/WhatsApp us on 0704 399665.';
+      }
     })();
-
-    document.getElementById('registerForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const errorBox = document.getElementById('registerError');
-      errorBox.style.display = 'none';
-
-      const fullName = document.getElementById('fullName').value.trim();
-      const email = document.getElementById('email').value.trim();
-      const phone = document.getElementById('phone').value.trim();
-      const password = document.getElementById('password').value;
-      const confirmPassword = document.getElementById('confirmPassword').value;
-
-      if (password !== confirmPassword) {
-        errorBox.textContent = 'Passwords do not match.';
-        errorBox.style.display = 'block';
-        return;
-      }
-
-      const btn = document.getElementById('registerBtn');
-      btn.disabled = true;
-      btn.textContent = 'Creating account...';
-
-      const { data, error } = await supabaseClient.auth.signUp({
-        email,
-        password,
-        options: {
-          data: { full_name: fullName, phone },
-          emailRedirectTo: 'https://ndelectronictechnologies.com/account/email-confirmed/',
-        },
-      });
-
-      btn.disabled = false;
-      btn.textContent = 'Create Account';
-
-      if (error) {
-        errorBox.textContent = error.message;
-        errorBox.style.display = 'block';
-        return;
-      }
-
-      if (!data.session) {
-        // Email confirmation is required before login — no active session yet.
-        document.querySelector('.contact-form-wrap').innerHTML =
-          '<div class="eyebrow" style="justify-content:center;display:flex;">Almost There</div>' +
-          '<h3 style="text-align:center;">Check your email</h3>' +
-          '<p style="text-align:center;">We sent a confirmation link to <strong>' + email.replace(/[<>&"]/g, '') + '</strong>. Click it, then <a href="/account/login/">log in</a>.</p>';
-        return;
-      }
-
-
-
-      const redirect = new URLSearchParams(window.location.search).get('redirect');
-      window.location.href = redirect || '/account/';
-    });
-
   </script>
 </body>
 

@@ -43,6 +43,7 @@ product/<id>/index.html for every active product, plus updates the
 import json
 import os
 import re
+import shutil
 import sys
 import urllib.request
 import urllib.error
@@ -137,6 +138,9 @@ PRODUCT_PAGE_TEMPLATE = """<!DOCTYPE html>
 <script type="application/ld+json">
 {product_ld}
 </script>
+<script type="application/ld+json">
+{breadcrumb_ld}
+</script>
 </head>
 <body data-page="shop">
 
@@ -193,13 +197,15 @@ PRODUCT_PAGE_TEMPLATE = """<!DOCTYPE html>
     </div>
     <div class="product-detail-grid">
       <div class="product-detail-img">
-        {image_tag}
+        <div class="product-detail-img-main">
+          {image_tag}
+        </div>
       </div>
       <div class="product-detail-info">
         <div class="product-detail-cat">{category}</div>
         <h1>{name}</h1>
         <div class="product-detail-price">{price}</div>
-        <p class="desc">{description}</p>
+        <p class="desc">{description_full}</p>
         <p class="stock-note">{stock_note}</p>
         <a href="/product/?id={product_id}" class="btn btn-primary" style="margin-top:14px;">View &amp; Order This Product →</a>
       </div>
@@ -210,6 +216,7 @@ PRODUCT_PAGE_TEMPLATE = """<!DOCTYPE html>
 <footer style="margin-top:0;">
   <div class="footer-bottom" style="border-top:none;padding-top:0;">
     <span>© 2021–2026 ND Electronic Technologies Ltd. All rights reserved.</span>
+    <span class="footer-legal-links"><a href="/privacy/">Privacy Policy</a> · <a href="/terms/">Terms of Service</a> · <a href="/refund-policy/">Refund Policy</a></span>
     <span>Lukuli, Nanganda — Kampala, Uganda</span>
   </div>
 </footer>
@@ -219,11 +226,24 @@ PRODUCT_PAGE_TEMPLATE = """<!DOCTYPE html>
 """
 
 
+def truncate_meta_description(description, limit=160):
+    """Trim on a whole word, never mid-word — a hard character slice cuts
+    words in half (e.g. "...weatherpr"), which looks broken in a Google/AI
+    snippet. Google's own display budget is roughly this length anyway."""
+    flat = ' '.join(description.split())
+    if len(flat) <= limit:
+        return flat
+    return flat[:limit].rsplit(' ', 1)[0].rstrip('.,;:-') + '…'
+
+
 def render_product_page(p, supabase_url, review_stats):
     page_url = f'https://ndelectronictechnologies.com/product/{p["id"]}/'
     name = p.get('name') or 'Product'
     description = (p.get('description') or '').strip() or f'{name} — available from ND Electronic Technologies Ltd, delivered in Kampala, Uganda.'
     price = p.get('price') or 0
+    sale_price = p.get('sale_price')
+    on_sale = sale_price is not None and float(sale_price) < float(price)
+    offer_price = sale_price if on_sale else price
     stock = p.get('stock') or 0
     image = p.get('image_url') or ''
     category = p.get('category') or 'General'
@@ -239,7 +259,7 @@ def render_product_page(p, supabase_url, review_stats):
         'offers': {
             '@type': 'Offer',
             'priceCurrency': 'UGX',
-            'price': price,
+            'price': offer_price,
             'availability': 'https://schema.org/InStock' if stock > 0 else 'https://schema.org/OutOfStock',
             'url': page_url,
             'seller': {'@type': 'Organization', 'name': 'ND Electronic Technologies Ltd'},
@@ -257,7 +277,25 @@ def render_product_page(p, supabase_url, review_stats):
             'reviewCount': count,
         }
 
-    meta_description = ' '.join(description.split())[:200]
+    breadcrumb_ld = {
+        '@context': 'https://schema.org',
+        '@type': 'BreadcrumbList',
+        'itemListElement': [
+            {'@type': 'ListItem', 'position': 1, 'name': 'Home', 'item': 'https://ndelectronictechnologies.com/'},
+            {'@type': 'ListItem', 'position': 2, 'name': 'Shop', 'item': 'https://ndelectronictechnologies.com/shop/'},
+            {'@type': 'ListItem', 'position': 3, 'name': name, 'item': page_url},
+        ],
+    }
+
+    meta_description = truncate_meta_description(description)
+
+    if on_sale:
+        price_html = (
+            f'<span class="product-detail-was">{esc(ugx(price))}</span> '
+            f'<span class="product-detail-sale-badge">Sale</span><br>{esc(ugx(sale_price))}'
+        )
+    else:
+        price_html = esc(ugx(price))
 
     return PRODUCT_PAGE_TEMPLATE.format(
         title=esc(f'{name} — ND Electronic Technologies Ltd'),
@@ -265,10 +303,11 @@ def render_product_page(p, supabase_url, review_stats):
         page_url=page_url,
         image=esc(image),
         product_ld=json.dumps(product_ld, ensure_ascii=False, indent=2),
+        breadcrumb_ld=json.dumps(breadcrumb_ld, ensure_ascii=False, indent=2),
         product_id=p['id'],
         name=esc(name),
         category=esc(category),
-        price=esc(ugx(price)),
+        price=price_html,
         description_full=esc(description),
         stock_note=f'{stock} in stock' if stock > 0 else 'Out of stock',
         image_tag=(f'<img src="{esc(image)}" alt="{esc(name)}" />' if image else ''),
@@ -281,9 +320,12 @@ STATIC_GRID_END = '<!-- STATIC_PRODUCT_GRID:END -->'
 
 def render_static_grid_item(p):
     name = esc(p.get('name') or 'Product')
-    price = esc(ugx(p.get('price') or 0))
+    raw_price = p.get('price') or 0
+    sale_price = p.get('sale_price')
+    on_sale = sale_price is not None and float(sale_price) < float(raw_price)
+    price = esc(ugx(sale_price)) if on_sale else esc(ugx(raw_price))
     category = esc(p.get('category') or 'General')
-    desc = esc((p.get('description') or '')[:140])
+    desc = esc(truncate_meta_description(p.get('description') or '', limit=140))
     image = p.get('image_url') or ''
     img_html = f'<img src="{esc(image)}" alt="{name}" loading="lazy" />' if image else ''
     return f'''      <div class="shop-card">
@@ -366,6 +408,26 @@ def update_sitemap(products):
     open(path, 'w', encoding='utf-8').write(text)
 
 
+def remove_stale_product_dirs(product_dir, active_ids):
+    """A product that's deleted or deactivated in Supabase must not leave its
+    old static page sitting on disk forever — it's no longer in the sitemap,
+    but it would still be directly reachable at its old URL, which defeats
+    the point of deactivating it (especially for the kind of test/placeholder
+    data this generator exists to catch)."""
+    if not os.path.isdir(product_dir):
+        return []
+    removed = []
+    for entry in os.listdir(product_dir):
+        entry_path = os.path.join(product_dir, entry)
+        if not os.path.isdir(entry_path) or not entry.isdigit():
+            continue
+        if entry not in active_ids:
+            if os.path.exists(os.path.join(entry_path, 'index.html')):
+                shutil.rmtree(entry_path)
+                removed.append(entry)
+    return removed
+
+
 def main():
     supabase_url, anon_key = read_supabase_config()
     print(f'Fetching active products from {supabase_url} ...')
@@ -375,9 +437,11 @@ def main():
 
     product_dir = os.path.join(ROOT, 'product')
     written = 0
+    active_ids = set()
     for p in products:
         if not p.get('id'):
             continue
+        active_ids.add(str(p['id']))
         out_dir = os.path.join(product_dir, str(p['id']))
         os.makedirs(out_dir, exist_ok=True)
         out_path = os.path.join(out_dir, 'index.html')
@@ -386,9 +450,13 @@ def main():
         written += 1
         print(f'  wrote product/{p["id"]}/index.html — {p.get("name")}')
 
+    removed = remove_stale_product_dirs(product_dir, active_ids)
+    for r in removed:
+        print(f'  removed product/{r}/ — no longer an active product')
+
     update_shop_static_grid(products)
     update_sitemap(products)
-    print(f'Done — {written} static product page(s) written, shop grid and sitemap.xml updated.')
+    print(f'Done — {written} static product page(s) written, {len(removed)} stale page(s) removed, shop grid and sitemap.xml updated.')
 
 
 if __name__ == '__main__':

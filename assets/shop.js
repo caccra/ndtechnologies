@@ -28,6 +28,15 @@ async function loadShopProducts() {
   // downstream needs a consistent type regardless of whether the products
   // table uses uuid or integer ids.
   ALL_PRODUCTS = data.map(p => ({ ...p, id: String(p.id) }));
+
+  // Lets a link like /shop/?category=Carports land pre-filtered — used by
+  // the carports service page's cross-link to the shop, and gives category
+  // links a real, shareable URL instead of only a client-side tab click.
+  const requestedCategory = new URLSearchParams(window.location.search).get('category');
+  if (requestedCategory && ALL_PRODUCTS.some(p => p.category === requestedCategory)) {
+    ACTIVE_CATEGORY = requestedCategory;
+  }
+
   await loadWishlistIds();
   await loadProductRatings();
   buildCategoryTabs();
@@ -178,7 +187,7 @@ function renderGrid() {
     return `
     <div class="shop-card">
       <div class="shop-card-media">
-        <a href="/product/${p.id}/" class="shop-card-img">
+        <a href="/product/?id=${p.id}" class="shop-card-img">
           ${p.image_url ? `<img src="${p.image_url}" alt="${p.name}" loading="lazy" />` : `<div class="shop-card-noimg">No image</div>`}
         </a>
         ${onSale ? '<span class="shop-card-sale-badge">Sale</span>' : ''}
@@ -186,7 +195,7 @@ function renderGrid() {
       </div>
       <div class="shop-card-body">
         <span class="shop-card-cat">${p.category}</span>
-        <a href="/product/${p.id}/"><h3>${p.name}</h3></a>
+        <a href="/product/?id=${p.id}"><h3>${p.name}</h3></a>
         ${rating ? `<div class="shop-card-rating">${starsSmallHtml(rating.avg)}<span>(${rating.count})</span></div>` : ''}
         <p>${p.description}</p>
         <div class="shop-card-foot">

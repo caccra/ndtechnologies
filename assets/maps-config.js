@@ -4,4 +4,4 @@
    with Maps JavaScript API + Places API enabled and the key restricted to
    this site's domain and those two APIs. */
 
-const GOOGLE_MAPS_API_KEY = 'YOUR-GOOGLE-MAPS-API-KEY-HERE';
+const GOOGLE_MAPS_API_KEY = 'AIzaSyCuo8XOz5To1BlPFeP9iAg6pcpNGcjTRjE';

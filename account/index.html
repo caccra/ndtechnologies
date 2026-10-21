@@ -38,6 +38,7 @@
     <li><a href="/shop/" data-nav="shop">Shop</a></li>
     <li><a href="/about/" data-nav="about">About</a></li>
     <li><a href="/contact/" data-nav="contact">Contact</a></li>
+    <li><a href="/faq/" data-nav="faq">FAQ</a></li>
   </ul>
   <div class="nav-right">
     <a href="/account/" class="account-icon-link" aria-label="Account"><svg><use href="#ico-user"/></svg><span class="account-name"></span></a>
@@ -58,6 +59,7 @@
   <a href="/shop/" data-nav="shop">Shop</a>
   <a href="/about/" data-nav="about">About</a>
   <a href="/contact/" data-nav="contact">Contact</a>
+  <a href="/faq/" data-nav="faq">FAQ</a>
   <a href="/account/">My Account</a>
   <a href="/cart/">Cart (<span data-cart-count style="display:inline">0</span>)</a>
   <a href="/account/" class="btn btn-primary">My Account</a>
@@ -166,6 +168,7 @@
             <div class="admin-error" id="passwordError" style="display:none;background:#FCE8E4;color:#B0301A;border-radius:var(--radius);padding:11px 14px;font-size:13px;margin-bottom:16px;"></div>
             <div class="form-success" id="passwordSuccess" style="background:var(--amber-light);color:var(--ink);border-radius:var(--radius);padding:11px 14px;font-size:13px;margin-bottom:16px;display:none;">Password updated.</div>
             <form id="passwordForm">
+              <div class="form-group"><label>Current Password *</label><input type="password" id="currentPassword" required autocomplete="current-password" /></div>
               <div class="form-group"><label>New Password *</label><input type="password" id="newPassword" required minlength="8" autocomplete="new-password" /></div>
               <div class="form-group"><label>Confirm Password *</label><input type="password" id="confirmNewPassword" required minlength="8" autocomplete="new-password" /></div>
               <button type="submit" class="btn btn-primary" id="passwordBtn" style="width:100%;justify-content:center;">Update Password</button>
@@ -179,7 +182,7 @@
           <div class="detail-block">
             <div class="faq-item">
               <h3>How do I track my order?</h3>
-              <p>Open the Orders or Inbox tab — status updates (In Progress, Dispatched, Fulfilled) appear as soon as we update them.</p>
+              <p>Open the Orders or Inbox tab — status updates (In Progress, Dispatched, Delivered) appear as soon as we update them.</p>
             </div>
             <div class="faq-item">
               <h3>How long does delivery take?</h3>
@@ -187,7 +190,7 @@
             </div>
             <div class="faq-item">
               <h3>What payment methods do you accept?</h3>
-              <p>Mobile Money (MTN/Airtel), Card, or Cash on Delivery.</p>
+              <p>Cash on Delivery.</p>
             </div>
             <div class="faq-item">
               <h3>Can I return or exchange a product?</h3>
@@ -207,6 +210,7 @@
 <footer style="margin-top:0;">
   <div class="footer-bottom" style="border-top:none;padding-top:0;">
     <span>© <span id="copyrightYears">2021–2026</span> ND Electronic Technologies Ltd. All rights reserved.</span>
+    <span class="footer-legal-links"><a href="/privacy/">Privacy Policy</a> · <a href="/terms/">Terms of Service</a> · <a href="/refund-policy/">Refund Policy</a></span>
     <span>Lukuli, Nanganda — Kampala, Uganda</span>
   </div>
 </footer>
@@ -218,19 +222,36 @@
 <script src="/assets/script.js" defer></script>
 <script src="/assets/cart.js"></script>
 <script src="/assets/supabase-config.js"></script>
+<script src="/assets/clerk-config.js"></script>
 <script src="/assets/admin.js"></script>
 <script src="/assets/maps-config.js"></script>
 <script src="/assets/address-map.js"></script>
 <script>
   const STATUS_LABELS = {
     pending: 'Pending', paid: 'Paid', in_progress: 'In Progress',
-    dispatched: 'Dispatched', fulfilled: 'Fulfilled / Complete',
+    dispatched: 'Dispatched', fulfilled: 'Delivered',
     failed: 'Failed', cancelled: 'Cancelled',
   };
   const SECTIONS = ['orders', 'inbox', 'wishlist', 'reviews', 'payments', 'addresses', 'account', 'help'];
   const loaded = {};
 
   function ugx(n) { return 'UGX ' + Number(n).toLocaleString('en-UG'); }
+
+  // Fire-and-forget trigger for the "your order is now ..." email to the
+  // customer and sales@ — never blocks the UI on this, but (unlike a bare
+  // `.catch(() => {})`) actually logs a failure to the console instead of
+  // hiding it completely. fetch() only rejects on a genuine network error;
+  // a 404 (function not deployed) or a 500 (missing secrets) still
+  // resolves normally, so checking res.ok is the only way to notice those.
+  function notifyOrderStatus(orderId) {
+    fetch(`${SUPABASE_URL}/functions/v1/send-order-notifications`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ order_id: orderId }),
+    }).then(async (res) => {
+      if (!res.ok) console.error('send-order-notifications failed:', res.status, await res.text().catch(() => ''));
+    }).catch((err) => console.error('send-order-notifications network error:', err));
+  }
   function fmtDate(iso) { return new Date(iso).toLocaleString('en-UG', { dateStyle: 'medium', timeStyle: 'short' }); }
   function fmtRelative(iso) {
     const diffMs = Date.now() - new Date(iso).getTime();
@@ -253,17 +274,31 @@
   let currentUser = null;
   let ORDERS = null;
 
+  let clerk = null;
+
   async function init() {
-    const { data: { session } } = await supabaseClient.auth.getSession();
-    if (!session) {
+    try {
+      clerk = await loadClerk();
+    } catch (err) {
+      console.error('Clerk failed to load:', err);
+    }
+    if (!clerk || !clerk.user) {
       window.location.href = '/account/login/?redirect=' + encodeURIComponent('/account/');
       return;
     }
-    currentUser = session.user;
+    currentUser = await getCurrentCustomer();
     document.getElementById('email').value = currentUser.email;
     claimPendingOrder();
 
-    const { data: profile } = await supabaseClient.from('profiles').select('full_name, phone').eq('id', currentUser.id).single();
+    // No Postgres trigger creates this row for a Clerk sign-up the way it
+    // does for a native Supabase one (see supabase/schema.sql) — create it
+    // here instead, the first time this customer ever lands on their
+    // dashboard. ignoreDuplicates means this is a no-op on every later
+    // visit, so it never clobbers name/phone they've since edited.
+    await supabaseClient.from('profiles')
+      .upsert({ id: currentUser.id, full_name: currentUser.fullName || null }, { onConflict: 'id', ignoreDuplicates: true });
+
+    const { data: profile } = await supabaseClient.from('profiles').select('full_name, phone').eq('id', currentUser.id).maybeSingle();
     if (profile) {
       document.getElementById('fullName').value = profile.full_name || '';
       document.getElementById('phone').value = profile.phone || '';
@@ -273,7 +308,7 @@
       btn.addEventListener('click', () => showSection(btn.dataset.section));
     });
     document.getElementById('sidebarSignOutBtn').addEventListener('click', async () => {
-      await supabaseClient.auth.signOut();
+      await clerk.signOut();
       window.location.href = '/';
     });
 
@@ -315,7 +350,7 @@
       return `<div class="order-tracker cancelled"><span class="order-status ${esc(status)}">${esc(STATUS_LABELS[status] || status)}</span></div>`;
     }
     const idx = Math.max(0, STEP_ORDER.indexOf(status));
-    const labels = ['Placed', 'Paid', 'In Progress', 'Dispatched', 'Fulfilled'];
+    const labels = ['Placed', 'Paid', 'In Progress', 'Dispatched', 'Delivered'];
     return `<div class="order-tracker">${labels.map((label, i) => `
       <div class="order-tracker-step${i <= idx ? ' done' : ''}${i === idx ? ' current' : ''}">
         <span class="dot"></span><span class="label">${label}</span>
@@ -352,6 +387,7 @@
           <span class="name">${esc(i.product_name)}</span>
           <span class="qty">×${i.quantity}</span>
           <span class="price">${ugx(i.line_total)}</span>
+          ${o.status === 'fulfilled' && i.product_id ? `<a href="/product/?id=${encodeURIComponent(i.product_id)}#reviewsWrap" class="account-order-review-link"><svg><use href="#ico-star"/></svg>Rate this product</a>` : ''}
         </div>`).join('') || '<p style="color:var(--text-muted);font-size:13px;">No items on record.</p>';
 
       return `
@@ -394,6 +430,7 @@
     if (error) { showToast('Could not cancel: ' + error.message, 'error'); return; }
     if (!data || !data.length) { showToast('This order can no longer be cancelled — it may already be processing.', 'error'); return; }
     showToast('Order cancelled.');
+    notifyOrderStatus(orderId);
     ORDERS = null; // force a refetch so every tab reflects the new status
     loaded.inbox = false;
     loaded.payments = false;
@@ -805,6 +842,7 @@
     errorBox.style.display = 'none';
     successBox.style.display = 'none';
 
+    const currentPassword = document.getElementById('currentPassword').value;
     const newPassword = document.getElementById('newPassword').value;
     const confirmNewPassword = document.getElementById('confirmNewPassword').value;
     if (newPassword !== confirmNewPassword) {
@@ -817,16 +855,18 @@
     btn.disabled = true;
     btn.textContent = 'Updating...';
 
-    const { error } = await supabaseClient.auth.updateUser({ password: newPassword });
-
-    btn.disabled = false;
-    btn.textContent = 'Update Password';
-
-    if (error) {
-      errorBox.textContent = error.message;
+    try {
+      await clerk.user.updatePassword({ currentPassword, newPassword });
+    } catch (err) {
+      btn.disabled = false;
+      btn.textContent = 'Update Password';
+      errorBox.textContent = (err.errors && err.errors[0] && err.errors[0].message) || err.message || 'Could not update your password.';
       errorBox.style.display = 'block';
       return;
     }
+
+    btn.disabled = false;
+    btn.textContent = 'Update Password';
     document.getElementById('passwordForm').reset();
     successBox.style.display = 'block';
     setTimeout(() => { successBox.style.display = 'none'; }, 2500);

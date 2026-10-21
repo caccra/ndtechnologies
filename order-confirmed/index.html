@@ -37,6 +37,7 @@
     <li><a href="/shop/" data-nav="shop">Shop</a></li>
     <li><a href="/about/" data-nav="about">About</a></li>
     <li><a href="/contact/" data-nav="contact">Contact</a></li>
+    <li><a href="/faq/" data-nav="faq">FAQ</a></li>
   </ul>
   <div class="nav-right">
     <a href="/account/" class="account-icon-link" aria-label="Account"><svg><use href="#ico-user"/></svg><span class="account-name"></span></a>
@@ -53,6 +54,7 @@
   <a href="/shop/" data-nav="shop">Shop</a>
   <a href="/about/" data-nav="about">About</a>
   <a href="/contact/" data-nav="contact">Contact</a>
+  <a href="/faq/" data-nav="faq">FAQ</a>
   <a href="/account/">My Account</a>
   <a href="/account/" class="btn btn-primary">My Account</a>
 </div>
@@ -77,6 +79,7 @@
 <footer style="margin-top:0;">
   <div class="footer-bottom" style="border-top:none;padding-top:0;">
     <span>© <span id="copyrightYears">2021–2026</span> ND Electronic Technologies Ltd. All rights reserved.</span>
+    <span class="footer-legal-links"><a href="/privacy/">Privacy Policy</a> · <a href="/terms/">Terms of Service</a> · <a href="/refund-policy/">Refund Policy</a></span>
     <span>Lukuli, Nanganda — Kampala, Uganda</span>
   </div>
 </footer>
@@ -88,6 +91,7 @@
 <script src="/assets/script.js" defer></script>
 <script src="/assets/cart.js"></script>
 <script src="/assets/supabase-config.js"></script>
+<script src="/assets/clerk-config.js"></script>
 <script>
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -129,9 +133,8 @@
         <span>${formatUGX(i.price * i.qty)}</span>
       </div>`).join('');
 
-    const methodLabel = orderData.method === 'cod' ? 'Cash on Delivery'
-      : orderData.method === 'card' ? 'Card' : 'Mobile Money';
-    const amountLabel = orderData.method === 'cod' ? 'Amount to pay on delivery' : 'Amount paid';
+    const methodLabel = 'Cash on Delivery';
+    const amountLabel = 'Amount to pay on delivery';
 
     document.getElementById('orderSummary').innerHTML = `
       <div class="cart-summary" style="text-align:left;margin-top:8px;">
@@ -143,72 +146,30 @@
   }
 
   // ── Offer to create an account, only for a guest checkout ──
+  // Account creation itself now happens on the Register page's mounted Clerk
+  // form (see SETUP.md section 10) rather than inline here — Clerk's sign-up
+  // component isn't meant to be re-hosted inside an arbitrary form. This just
+  // links there, pre-filling what we already know and bringing the shopper
+  // straight back here so claimPendingOrder() (in cart.js) can link the order
+  // they just placed to the account they just created.
   async function renderAccountOffer() {
     if (!orderData || orderData.loggedIn) return; // already signed in — nothing to offer
-    const { data: { session } } = await supabaseClient.auth.getSession();
-    if (session) return; // they registered/logged in already (e.g. reloaded this page)
+    try { await loadClerk(); } catch { /* Clerk unreachable — still show the offer below */ }
+    const customer = await getCurrentCustomer();
+    if (customer) return; // they registered/logged in already (e.g. reloaded this page)
 
     const wrap = document.getElementById('accountOffer');
+    const registerUrl = '/account/register/?redirect=' + encodeURIComponent('/account/')
+      + '&email=' + encodeURIComponent(orderData.customerEmail || '');
+
     wrap.innerHTML = `
-      <div class="contact-form-wrap" style="margin-top:24px;">
+      <div class="contact-form-wrap" style="margin-top:24px;text-align:center;">
         <div class="eyebrow" style="justify-content:center;display:flex;">Save This Order</div>
-        <h3 style="text-align:center;">Create an account to track it</h3>
-        <p style="text-align:center;">See this order any time, save your address for next time, and check out faster later.</p>
-        <div class="admin-error" id="offerError" style="display:none;background:#FCE8E4;color:#B0301A;border-radius:var(--radius);padding:11px 14px;font-size:13px;margin-bottom:16px;"></div>
-        <form id="offerForm">
-          <div class="form-group"><label>Full Name *</label><input type="text" id="offerName" required value="${esc(orderData.customerName || '')}" /></div>
-          <div class="form-group"><label>Email *</label><input type="email" id="offerEmail" required value="${esc(orderData.customerEmail || '')}" readonly style="opacity:.7;" /></div>
-          <div class="form-group"><label>Password *</label><input type="password" id="offerPassword" required minlength="6" autocomplete="new-password" /></div>
-          <button type="submit" class="btn btn-primary" id="offerBtn" style="width:100%;justify-content:center;">Create Account</button>
-        </form>
-        <p style="text-align:center;margin-top:14px;font-size:13px;color:var(--text-muted);">Not now? <a href="/shop/">Continue as guest</a></p>
+        <h3>Create an account to track it</h3>
+        <p>See this order any time, save your address for next time, and check out faster later.</p>
+        <a href="${esc(registerUrl)}" class="btn btn-primary" style="margin-top:8px;">Create Account →</a>
+        <p style="margin-top:14px;font-size:13px;color:var(--text-muted);">Not now? <a href="/shop/">Continue as guest</a></p>
       </div>`;
-
-    document.getElementById('offerForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const errorBox = document.getElementById('offerError');
-      errorBox.style.display = 'none';
-      const btn = document.getElementById('offerBtn');
-      btn.disabled = true;
-      btn.textContent = 'Creating account...';
-
-      const fullName = document.getElementById('offerName').value.trim();
-      const email = document.getElementById('offerEmail').value.trim();
-      const password = document.getElementById('offerPassword').value;
-
-      const { data, error } = await supabaseClient.auth.signUp({
-        email, password,
-        options: { data: { full_name: fullName, phone: '' } },
-      });
-
-      if (error) {
-        btn.disabled = false;
-        btn.textContent = 'Create Account';
-        errorBox.textContent = error.message;
-        errorBox.style.display = 'block';
-        return;
-      }
-
-      // localStorage.ndet_pending_claim was already set at checkout time —
-      // claimPendingOrder() (in cart.js) picks it up as soon as a session
-      // exists, whether that's right now or after an email-confirmation link.
-      if (data.session) {
-        await claimPendingOrder();
-        wrap.innerHTML = `
-          <div class="contact-form-wrap" style="margin-top:24px;text-align:center;">
-            <div class="eyebrow" style="justify-content:center;display:flex;">All Set</div>
-            <h3>Account created</h3>
-            <p>This order is now saved to your account. <a href="/account/">View My Account →</a></p>
-          </div>`;
-      } else {
-        wrap.innerHTML = `
-          <div class="contact-form-wrap" style="margin-top:24px;text-align:center;">
-            <div class="eyebrow" style="justify-content:center;display:flex;">Almost There</div>
-            <h3>Check your email</h3>
-            <p>We sent a confirmation link to <strong>${esc(email)}</strong>. Click it, then <a href="/account/login/">log in</a> — this order will be added to your account automatically.</p>
-          </div>`;
-      }
-    });
   }
   renderAccountOffer();
 </script>

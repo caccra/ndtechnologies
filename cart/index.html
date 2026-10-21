@@ -16,7 +16,6 @@
 <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Poppins:wght@500;600;700&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/assets/styles.css" />
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://checkout.flutterwave.com/v3.js"></script>
 </head>
 <body data-page="shop">
 
@@ -38,6 +37,7 @@
     <li><a href="/shop/" data-nav="shop">Shop</a></li>
     <li><a href="/about/" data-nav="about">About</a></li>
     <li><a href="/contact/" data-nav="contact">Contact</a></li>
+    <li><a href="/faq/" data-nav="faq">FAQ</a></li>
   </ul>
   <div class="nav-right">
     <a href="/account/" class="account-icon-link" aria-label="Account"><svg><use href="#ico-user"/></svg><span class="account-name"></span></a>
@@ -58,6 +58,7 @@
   <a href="/shop/" data-nav="shop">Shop</a>
   <a href="/about/" data-nav="about">About</a>
   <a href="/contact/" data-nav="contact">Contact</a>
+  <a href="/faq/" data-nav="faq">FAQ</a>
   <a href="/account/">My Account</a>
   <a href="/cart/">Cart (<span data-cart-count style="display:inline">0</span>)</a>
   <a href="/account/" class="btn btn-primary">My Account</a>
@@ -116,6 +117,7 @@
   </div>
   <div class="footer-bottom">
     <span>© <span id="copyrightYears">2021–2026</span> ND Electronic Technologies Ltd. All rights reserved.</span>
+    <span class="footer-legal-links"><a href="/privacy/">Privacy Policy</a> · <a href="/terms/">Terms of Service</a> · <a href="/refund-policy/">Refund Policy</a></span>
     <span>Lukuli, Nanganda — Kampala, Uganda</span>
   </div>
 </footer>
@@ -127,7 +129,7 @@
 <script src="/assets/script.js" defer></script>
 <script src="/assets/cart.js"></script>
 <script src="/assets/supabase-config.js"></script>
-<script src="/assets/flutterwave-config.js"></script>
+<script src="/assets/clerk-config.js"></script>
 <script src="/assets/maps-config.js"></script>
 <script src="/assets/address-map.js"></script>
 <script src="/assets/checkout.js"></script>

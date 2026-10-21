@@ -22,6 +22,59 @@ alter table profiles add column if not exists full_name text;
 alter table profiles add column if not exists phone text;
 alter table profiles add column if not exists created_at timestamptz not null default now();
 
+-- Customer accounts run on Clerk now (see SETUP.md section 10), whose user
+-- IDs aren't UUIDs and never get a row in Supabase's own auth.users table —
+-- only admin/staff accounts (still on Supabase's own Auth) do. So `id` has
+-- to be able to hold either kind of identity: a native Supabase uuid (as
+-- text) for admin/staff, or a Clerk user ID string for customers. Force it
+-- to text regardless of whatever type it currently has (no-op if it's
+-- already text) — the same situation profiles.role ran into earlier in
+-- this file's history, so the same fix: clear every policy and view that
+-- depends on the column first, since Postgres refuses to change a column's
+-- type while anything depends on it. Nothing here is a real loss — the RLS
+-- section further down (search "users update own profile") recreates every
+-- policy this schema needs, and nothing in this project's own code queries
+-- a view on `profiles`, it's all queried directly.
+do $$
+declare
+  pol record;
+begin
+  for pol in select policyname from pg_policies where schemaname = 'public' and tablename = 'profiles'
+  loop
+    execute format('drop policy if exists %I on public.profiles', pol.policyname);
+  end loop;
+end $$;
+
+do $$
+declare
+  v record;
+begin
+  for v in
+    select distinct c.relname
+    from pg_depend d
+    join pg_rewrite r on r.oid = d.objid
+    join pg_class c on c.oid = r.ev_class
+    join pg_attribute a on a.attrelid = d.refobjid and a.attnum = d.refobjsubid
+    where d.refobjid = 'public.profiles'::regclass
+      and a.attname = 'id'
+      and c.relkind = 'v'
+  loop
+    execute format('drop view if exists public.%I cascade', v.relname);
+  end loop;
+end $$;
+
+alter table profiles drop constraint if exists profiles_id_fkey;
+
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'profiles' and column_name = 'id' and data_type <> 'text'
+  ) then
+    alter table profiles alter column id type text using id::text;
+  end if;
+end $$;
+
 -- Auto-create a profile row for every new signup (customer registration AND
 -- any admin account created via the Supabase dashboard). is_admin always
 -- starts false — an admin has to be promoted manually, see SETUP.md.
@@ -43,6 +96,39 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
 
+-- Admin/staff accounts stay on Supabase's own Auth (auth.uid()); customer
+-- accounts (registration, login, checkout) run on Clerk as a Third-Party
+-- Auth provider instead — Clerk's user IDs aren't UUIDs, and Clerk never
+-- creates a row in Supabase's own auth.users table for them, so auth.uid()
+-- (typed uuid) can error outright when called during a Clerk-authenticated
+-- request rather than just returning null. These two helpers exist so nothing
+-- in this file ever calls auth.uid() or reads the JWT directly again:
+--   - current_uid_text(): the admin/staff identity, safe under either
+--     session type — returns null instead of erroring when there's no
+--     native Supabase session to read.
+--   - current_customer_id(): the Clerk customer identity, read straight from the
+--     JWT's `sub` claim as text (see supabase/functions and SETUP.md
+--     section 10 for how Clerk is wired up as a Third-Party Auth provider).
+create or replace function public.current_uid_text()
+returns text
+language plpgsql
+stable
+as $$
+begin
+  return auth.uid()::text;
+exception when others then
+  return null;
+end;
+$$;
+
+create or replace function public.current_customer_id()
+returns text
+language sql
+stable
+as $$
+  select nullif(auth.jwt() ->> 'sub', '');
+$$;
+
 -- Reads a signed-in user's own admin flag. security definer + owned by the
 -- same role that owns `profiles` (the migration role) means it can read
 -- profiles regardless of the caller's RLS — this is what lets RLS policies
@@ -53,7 +139,7 @@ language sql
 stable
 security definer set search_path = public
 as $$
-  select coalesce((select is_admin from public.profiles where id = auth.uid()), false);
+  select coalesce((select is_admin from public.profiles where id = public.current_uid_text()), false);
 $$;
 
 -- ══════════════════════════════════════════
@@ -73,6 +159,73 @@ $$;
 -- bottom — it has to exist before anything tries to use it.
 -- ══════════════════════════════════════════
 alter table profiles add column if not exists role text not null default 'staff';
+
+-- This project's `profiles` table carries RLS policies from an earlier,
+-- different setup (named like "p_profiles_self_update" — not this file's
+-- naming convention) that reference the `role` column, and Postgres refuses
+-- to change a column's type while any policy depends on it. Clear every
+-- existing policy on `profiles` first, whatever it's called — the RLS
+-- section further down (search "users update own profile") recreates every
+-- policy this schema actually needs, so nothing is lost.
+do $$
+declare
+  pol record;
+begin
+  for pol in select policyname from pg_policies where schemaname = 'public' and tablename = 'profiles'
+  loop
+    execute format('drop policy if exists %I on public.profiles', pol.policyname);
+  end loop;
+end $$;
+
+-- Same story as the policies above: a view from that earlier setup
+-- ("admin_overview", and possibly others this file doesn't know about)
+-- reads `profiles.role`, which also blocks changing the column's type.
+-- Find and drop every view that depends on this specific column,
+-- whatever it's called — nothing in this project's own code references
+-- any view on `profiles` (it's all queried directly), so none of this is
+-- a real loss.
+do $$
+declare
+  v record;
+begin
+  for v in
+    select distinct c.relname
+    from pg_depend d
+    join pg_rewrite r on r.oid = d.objid
+    join pg_class c on c.oid = r.ev_class
+    join pg_attribute a on a.attrelid = d.refobjid and a.attnum = d.refobjsubid
+    where d.refobjid = 'public.profiles'::regclass
+      and a.attname = 'role'
+      and c.relkind = 'v'
+  loop
+    execute format('drop view if exists public.%I cascade', v.relname);
+  end loop;
+end $$;
+
+-- `add column if not exists` above is a no-op when the column already
+-- exists — and on this project, `role` had already been created (outside
+-- this file) as a Postgres enum type, not text, whose labels don't include
+-- 'owner'/'staff'. Force it to plain text regardless of whatever type it
+-- currently has, so the constraint and the 'owner' update below never fail
+-- with "invalid input value for enum ...". No-op if it's already text.
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'profiles' and column_name = 'role' and data_type <> 'text'
+  ) then
+    alter table profiles alter column role type text using role::text;
+    alter table profiles alter column role set default 'staff';
+    alter table profiles alter column role set not null;
+  end if;
+end $$;
+
+-- Whatever the old enum's labels were, none of them mean anything to this
+-- schema's owner/staff distinction — normalize anything that isn't already
+-- 'owner' to 'staff' so the check constraint below can't fail on
+-- pre-existing data. Safe to re-run: rows already 'owner' are left alone.
+update profiles set role = 'staff' where role is distinct from 'owner';
+
 alter table profiles drop constraint if exists profiles_role_check;
 alter table profiles add constraint profiles_role_check check (role in ('owner', 'staff'));
 
@@ -82,7 +235,7 @@ language sql
 stable
 security definer set search_path = public
 as $$
-  select coalesce((select is_admin and role = 'owner' from public.profiles where id = auth.uid()), false);
+  select coalesce((select is_admin and role = 'owner' from public.profiles where id = public.current_uid_text()), false);
 $$;
 
 -- Promote the first admin account you set up to owner, so at least one
@@ -146,7 +299,7 @@ create table if not exists orders (
   currency text not null default 'UGX',
   status text not null default 'pending'               -- pending | paid | in_progress | dispatched | fulfilled | failed | cancelled
     check (status in ('pending','paid','in_progress','dispatched','fulfilled','failed','cancelled')),
-  payment_provider text default 'flutterwave',           -- 'flutterwave' (card/mobile money) or 'cod' (cash on delivery)
+  payment_provider text default 'cod',                    -- 'cod' (cash on delivery) — online payment is disabled for now
   payment_tx_ref text unique,                            -- our generated reference, sent to Flutterwave
   payment_flw_id text,                                   -- Flutterwave's transaction id, filled in after verification
   email_verified boolean not null default false,          -- customer completed email OTP verification at checkout
@@ -170,7 +323,7 @@ alter table orders add column if not exists subtotal numeric(12,0) not null defa
 alter table orders add column if not exists total numeric(12,0) not null default 0;
 alter table orders add column if not exists currency text not null default 'UGX';
 alter table orders add column if not exists status text not null default 'pending';
-alter table orders add column if not exists payment_provider text default 'flutterwave';
+alter table orders add column if not exists payment_provider text default 'cod';
 alter table orders add column if not exists payment_tx_ref text;
 alter table orders add column if not exists payment_flw_id text;
 alter table orders add column if not exists email_verified boolean not null default false;
@@ -188,6 +341,12 @@ alter table orders add constraint orders_payment_tx_ref_key unique (payment_tx_r
 -- call racing the webhook) can never send the same email twice.
 alter table orders add column if not exists customer_email_sent_at timestamptz;
 alter table orders add column if not exists admin_email_sent_at timestamptz;
+
+-- Tracks the last status a "your order is now ..." email was actually sent
+-- for — compared against the order's current status so send-order-notifications
+-- can tell a real transition (pending -> paid -> in_progress -> ...) apart from
+-- being called again for a status it's already notified everyone about.
+alter table orders add column if not exists last_notified_status text;
 
 -- widen the status check to add in_progress/dispatched (safe to re-run)
 alter table orders drop constraint if exists orders_status_check;
@@ -684,10 +843,6 @@ alter table products add constraint products_sale_price_check
 -- its own explicit, separately-guarded statement here so it's attached
 -- regardless of whether the column was old or new.
 -- ══════════════════════════════════════════
-alter table orders drop constraint if exists orders_customer_id_fkey;
-alter table orders add constraint orders_customer_id_fkey
-  foreign key (customer_id) references auth.users(id) on delete set null;
-
 alter table order_items drop constraint if exists order_items_order_id_fkey;
 alter table order_items add constraint order_items_order_id_fkey
   foreign key (order_id) references orders(id) on delete cascade;
@@ -700,14 +855,6 @@ alter table order_events drop constraint if exists order_events_order_id_fkey;
 alter table order_events add constraint order_events_order_id_fkey
   foreign key (order_id) references orders(id) on delete cascade;
 
-alter table addresses drop constraint if exists addresses_customer_id_fkey;
-alter table addresses add constraint addresses_customer_id_fkey
-  foreign key (customer_id) references auth.users(id) on delete cascade;
-
-alter table wishlist_items drop constraint if exists wishlist_items_customer_id_fkey;
-alter table wishlist_items add constraint wishlist_items_customer_id_fkey
-  foreign key (customer_id) references auth.users(id) on delete cascade;
-
 alter table wishlist_items drop constraint if exists wishlist_items_product_id_fkey;
 alter table wishlist_items add constraint wishlist_items_product_id_fkey
   foreign key (product_id) references products(id) on delete cascade;
@@ -716,9 +863,74 @@ alter table reviews drop constraint if exists reviews_product_id_fkey;
 alter table reviews add constraint reviews_product_id_fkey
   foreign key (product_id) references products(id) on delete cascade;
 
+-- ══════════════════════════════════════════
+-- customer_id columns — text, not uuid, no FK
+-- Every customer_id column below used to be `uuid references auth.users(id)`.
+-- Now that customer accounts run on Clerk (SETUP.md section 10), whose IDs
+-- aren't UUIDs and never get a row in Supabase's own auth.users table at
+-- all, that foreign key can no longer exist — there's nothing left in
+-- auth.users for it to point to. Drop each FK first (Postgres refuses to
+-- change a column's type while a constraint depends on it), then convert
+-- the column to text. No-op on a column that's already text. RLS is what
+-- actually enforces "only your own rows" now (via public.current_customer_id(),
+-- see the policies below) — the FK was never that boundary to begin with.
+-- ══════════════════════════════════════════
+alter table orders drop constraint if exists orders_customer_id_fkey;
+alter table addresses drop constraint if exists addresses_customer_id_fkey;
+alter table wishlist_items drop constraint if exists wishlist_items_customer_id_fkey;
 alter table reviews drop constraint if exists reviews_customer_id_fkey;
-alter table reviews add constraint reviews_customer_id_fkey
-  foreign key (customer_id) references auth.users(id) on delete cascade;
+alter table cart_items drop constraint if exists cart_items_customer_id_fkey;
+
+-- Any pre-existing policy referencing customer_id blocks the type change
+-- below (same issue profiles.role hit) — and not just on these 5 tables:
+-- a policy on order_items (or any other table) can reference orders.customer_id
+-- through a join/subquery, which Postgres still counts as a dependency. So
+-- drop every policy in the whole public schema, not just on these tables —
+-- the policies section further down recreates what's actually needed.
+do $$
+declare
+  pol record;
+begin
+  for pol in select schemaname, tablename, policyname from pg_policies where schemaname = 'public'
+  loop
+    execute format('drop policy if exists %I on %I.%I', pol.policyname, pol.schemaname, pol.tablename);
+  end loop;
+end $$;
+
+do $$
+declare
+  t text;
+  v record;
+begin
+  foreach t in array array['orders', 'addresses', 'wishlist_items', 'reviews', 'cart_items']
+  loop
+    for v in
+      select distinct c.relname from pg_depend d
+        join pg_rewrite r on r.oid = d.objid
+        join pg_class c on c.oid = r.ev_class
+        join pg_attribute a on a.attrelid = d.refobjid and a.attnum = d.refobjsubid
+      where d.refobjid = format('public.%I', t)::regclass
+        and a.attname = 'customer_id' and c.relkind = 'v'
+    loop
+      execute format('drop view if exists public.%I cascade', v.relname);
+    end loop;
+  end loop;
+end $$;
+
+do $$
+declare
+  t text;
+begin
+  foreach t in array array['orders', 'addresses', 'wishlist_items', 'reviews', 'cart_items']
+  loop
+    if exists (
+      select 1 from information_schema.columns
+      where table_schema = 'public' and table_name = t and column_name = 'customer_id' and data_type <> 'text'
+    ) then
+      execute format('alter table public.%I alter column customer_id type text using customer_id::text', t);
+    end if;
+  end loop;
+end $$;
 
 -- ══════════════════════════════════════════
 -- updated_at auto-touch
@@ -760,14 +972,24 @@ alter table reviews enable row level security;
 alter table cart_items enable row level security;
 alter table stock_notifications enable row level security;
 
--- Profiles: a user can read/update only their own row; admins can read all
+-- Profiles: a user can read/update only their own row; admins can read all.
+-- `id` holds two different kinds of identity now (see the customer_id/text
+-- note above products) — a native Supabase uuid-as-text for admin/staff, or
+-- a Clerk user ID for customers — so every one of these checks both.
 drop policy if exists "users read own profile" on profiles;
 create policy "users read own profile" on profiles
-  for select using (id = auth.uid());
+  for select using (id = current_uid_text() or id = current_customer_id());
 
 drop policy if exists "users update own profile" on profiles;
 create policy "users update own profile" on profiles
-  for update using (id = auth.uid());
+  for update using (id = current_uid_text() or id = current_customer_id());
+
+-- Customers insert their own profile row client-side right after signing up
+-- with Clerk — there's no Supabase auth.users insert to trigger
+-- handle_new_user() for them, since Clerk never creates one.
+drop policy if exists "customer insert own profile" on profiles;
+create policy "customer insert own profile" on profiles
+  for insert with check (id = current_customer_id());
 
 drop policy if exists "admin read all profiles" on profiles;
 create policy "admin read all profiles" on profiles
@@ -804,7 +1026,7 @@ create policy "public create orders" on orders
   for insert with check (
     status = 'pending'
     and payment_flw_id is null
-    and (customer_id is null or customer_id = auth.uid())
+    and (customer_id is null or customer_id = current_customer_id())
   );
 
 -- Orders: admins can read/update all orders
@@ -818,7 +1040,7 @@ create policy "admin update orders" on orders
 -- Orders: a signed-in customer can read their own orders
 drop policy if exists "customer read own orders" on orders;
 create policy "customer read own orders" on orders
-  for select using (customer_id = auth.uid());
+  for select using (customer_id = current_customer_id());
 
 -- Orders: a newly-registered customer can claim a guest order placed under
 -- their own email — this is how "create an account after checkout" links a
@@ -830,7 +1052,7 @@ drop policy if exists "customer claim own guest order" on orders;
 create policy "customer claim own guest order" on orders
   for update
   using (customer_id is null and customer_email = (auth.jwt() ->> 'email'))
-  with check (customer_id = auth.uid() and customer_email = (auth.jwt() ->> 'email'));
+  with check (customer_id = current_customer_id() and customer_email = (auth.jwt() ->> 'email'));
 
 -- A signed-in customer can cancel their own order — but only while it's
 -- still pending. Once it's paid/dispatched/etc. there's real money or
@@ -841,8 +1063,8 @@ create policy "customer claim own guest order" on orders
 drop policy if exists "customer cancel own pending order" on orders;
 create policy "customer cancel own pending order" on orders
   for update
-  using (customer_id = auth.uid() and status = 'pending')
-  with check (customer_id = auth.uid() and status = 'cancelled');
+  using (customer_id = current_customer_id() and status = 'pending')
+  with check (customer_id = current_customer_id() and status = 'cancelled');
 
 -- The payment verification Edge Function uses the service_role key, which
 -- bypasses RLS entirely — that's how it's allowed to flip a pending order to paid.
@@ -867,7 +1089,7 @@ create policy "admin read order items" on order_items
 drop policy if exists "customer read own order items" on order_items;
 create policy "customer read own order items" on order_items
   for select using (
-    exists (select 1 from orders where orders.id = order_items.order_id and orders.customer_id = auth.uid())
+    exists (select 1 from orders where orders.id = order_items.order_id and orders.customer_id = current_customer_id())
   );
 
 -- Order events: admins can read/insert all
@@ -880,14 +1102,14 @@ create policy "admin manage order events" on order_events
 drop policy if exists "customer read own order events" on order_events;
 create policy "customer read own order events" on order_events
   for select using (
-    exists (select 1 from orders where orders.id = order_events.order_id and orders.customer_id = auth.uid())
+    exists (select 1 from orders where orders.id = order_events.order_id and orders.customer_id = current_customer_id())
   );
 
 -- Addresses: a customer manages only their own
 drop policy if exists "customer manage own addresses" on addresses;
 create policy "customer manage own addresses" on addresses
-  for all using (customer_id = auth.uid())
-  with check (customer_id = auth.uid());
+  for all using (customer_id = current_customer_id())
+  with check (customer_id = current_customer_id());
 
 drop policy if exists "admin read all addresses" on addresses;
 create policy "admin read all addresses" on addresses
@@ -896,8 +1118,8 @@ create policy "admin read all addresses" on addresses
 -- Wishlist: a customer manages only their own
 drop policy if exists "customer manage own wishlist" on wishlist_items;
 create policy "customer manage own wishlist" on wishlist_items
-  for all using (customer_id = auth.uid())
-  with check (customer_id = auth.uid());
+  for all using (customer_id = current_customer_id())
+  with check (customer_id = current_customer_id());
 
 -- Wishlist: admins can read (not write) everyone's, for the Customers page's
 -- engagement counts — mirrors "admin read all addresses" just above.
@@ -917,21 +1139,21 @@ create policy "public read reviews" on reviews
 drop policy if exists "customer insert own reviews" on reviews;
 create policy "customer insert own reviews" on reviews
   for insert with check (
-    customer_id = auth.uid()
+    customer_id = current_customer_id()
     and exists (
       select 1 from order_items
       join orders on orders.id = order_items.order_id
       where order_items.product_id = reviews.product_id
-        and orders.customer_id = auth.uid()
+        and orders.customer_id = current_customer_id()
         and orders.status = 'fulfilled'
     )
   );
 drop policy if exists "customer update own reviews" on reviews;
 create policy "customer update own reviews" on reviews
-  for update using (customer_id = auth.uid());
+  for update using (customer_id = current_customer_id());
 drop policy if exists "customer delete own reviews" on reviews;
 create policy "customer delete own reviews" on reviews
-  for delete using (customer_id = auth.uid());
+  for delete using (customer_id = current_customer_id());
 
 -- Reviews: admins can update any review — in practice this is scoped down
 -- to just admin_reply/admin_reply_at by the trigger above; RLS itself only
@@ -943,8 +1165,8 @@ create policy "admin update reviews" on reviews
 -- Cart: a signed-in customer manages only their own server-side cart
 drop policy if exists "customer manage own cart" on cart_items;
 create policy "customer manage own cart" on cart_items
-  for all using (customer_id = auth.uid())
-  with check (customer_id = auth.uid());
+  for all using (customer_id = current_customer_id())
+  with check (customer_id = current_customer_id());
 
 -- Stock notifications: anyone can ask to be notified (no account needed) —
 -- but only admins can read the list back, so an email address submitted
@@ -992,8 +1214,8 @@ create policy "public read review images" on storage.objects
 
 drop policy if exists "customer upload own review images" on storage.objects;
 create policy "customer upload own review images" on storage.objects
-  for insert with check (bucket_id = 'review-images' and (storage.foldername(name))[1] = auth.uid()::text);
+  for insert with check (bucket_id = 'review-images' and (storage.foldername(name))[1] = current_customer_id());
 
 drop policy if exists "customer delete own review images" on storage.objects;
 create policy "customer delete own review images" on storage.objects
-  for delete using (bucket_id = 'review-images' and (storage.foldername(name))[1] = auth.uid()::text);
+  for delete using (bucket_id = 'review-images' and (storage.foldername(name))[1] = current_customer_id());

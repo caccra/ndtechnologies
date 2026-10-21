@@ -7,10 +7,11 @@
 # see SETUP.md.
 #
 # Left deliberately without a strict Content-Security-Policy: this site
-# loads Google Fonts, Google Maps, the Supabase JS SDK, and the Flutterwave
-# checkout widget from several third-party origins, and a wrong CSP would
-# silently break checkout rather than fail loudly. Add one once every
-# external script/style source in use is enumerated and tested.
+# loads Google Fonts, Google Maps, the Supabase JS SDK, and Clerk (customer
+# auth) from several third-party origins, and a wrong CSP would silently
+# break login/checkout rather than fail loudly. Add one once every external
+# script/style source in use is enumerated and tested. (Flutterwave was
+# removed from checkout — online payment is Cash-on-Delivery only for now.)
 
 /*
   X-Content-Type-Options: nosniff

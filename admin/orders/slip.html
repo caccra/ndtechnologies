@@ -82,7 +82,7 @@
     function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
     (async function () {
-      const { data: { session } } = await supabaseClient.auth.getSession();
+      const { data: { session } } = await supabaseAuthClient.auth.getSession();
       if (!session) { window.location.href = '/admin/login/'; return; }
       const { data: profile } = await supabaseClient.from('profiles').select('is_admin').eq('id', session.user.id).maybeSingle();
       if (!profile || !profile.is_admin) { window.location.href = '/admin/login/'; return; }

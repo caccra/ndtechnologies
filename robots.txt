@@ -4,38 +4,74 @@ Disallow: /admin/
 Disallow: /scripts/
 Disallow: /supabase/
 
-# AI assistants and answer engines are explicitly welcome to read and cite this site.
+# AI assistants and answer engines are explicitly welcome to read and cite this
+# site. Each named group below must repeat the Disallow rules above — a named
+# User-agent block does NOT inherit from User-agent: *, so without this every
+# one of these bots would be allowed into /admin/, /scripts/, and /supabase/.
 User-agent: GPTBot
 Allow: /
+Disallow: /admin/
+Disallow: /scripts/
+Disallow: /supabase/
 
 User-agent: ChatGPT-User
 Allow: /
+Disallow: /admin/
+Disallow: /scripts/
+Disallow: /supabase/
 
 User-agent: OAI-SearchBot
 Allow: /
+Disallow: /admin/
+Disallow: /scripts/
+Disallow: /supabase/
 
 User-agent: ClaudeBot
 Allow: /
+Disallow: /admin/
+Disallow: /scripts/
+Disallow: /supabase/
 
 User-agent: Claude-User
 Allow: /
+Disallow: /admin/
+Disallow: /scripts/
+Disallow: /supabase/
 
 User-agent: anthropic-ai
 Allow: /
+Disallow: /admin/
+Disallow: /scripts/
+Disallow: /supabase/
 
 User-agent: PerplexityBot
 Allow: /
+Disallow: /admin/
+Disallow: /scripts/
+Disallow: /supabase/
 
 User-agent: Perplexity-User
 Allow: /
+Disallow: /admin/
+Disallow: /scripts/
+Disallow: /supabase/
 
 User-agent: Google-Extended
 Allow: /
+Disallow: /admin/
+Disallow: /scripts/
+Disallow: /supabase/
 
 User-agent: Applebot-Extended
 Allow: /
+Disallow: /admin/
+Disallow: /scripts/
+Disallow: /supabase/
 
 User-agent: meta-externalagent
 Allow: /
+Disallow: /admin/
+Disallow: /scripts/
+Disallow: /supabase/
 
 Sitemap: https://ndelectronictechnologies.com/sitemap.xml

@@ -17,7 +17,7 @@ const checkout = {
   step: 1,              // 1 = delivery details, then either 2 = verify email + 3 = payment, or straight to 2 = payment
   customer: null,        // { name, phone, email, address, notes }
   emailVerified: false,
-  paymentMethod: 'cod',   // Cash on Delivery is the default/first option until Flutterwave or Cellulant is fully wired up
+  paymentMethod: 'cod',   // Cash on Delivery only — online payment (mobile money/card) is disabled for now
   loggedInUser: null,    // Supabase Auth user, set when checking out signed in — skips email OTP entirely
   savedAddresses: [],     // this customer's addresses from the Address Book, if any
   useNewAddress: false,   // true once they pick "Use a new address" over a saved one
@@ -34,6 +34,22 @@ let pickedLocation = null;  // { lat, lng } from the map picker, cleared wheneve
 
 function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// Fire-and-forget trigger for the order/status-update emails — never blocks
+// the UI on this, but (unlike a bare `.catch(() => {})`) actually logs a
+// failure to the console instead of hiding it completely. fetch() only
+// rejects on a genuine network error; a 404 (function not deployed) or a
+// 500 (missing Resend/ADMIN_NOTIFY_EMAIL secrets) still resolves normally,
+// so checking res.ok is the only way to notice those.
+function notifyOrderStatus(orderId) {
+  fetch(`${SUPABASE_URL}/functions/v1/send-order-notifications`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ order_id: orderId }),
+  }).then(async (res) => {
+    if (!res.ok) console.error('send-order-notifications failed:', res.status, await res.text().catch(() => ''));
+  }).catch((err) => console.error('send-order-notifications network error:', err));
 }
 
 function normalizePhoneUG(raw) {
@@ -439,8 +455,6 @@ async function applyCoupon() {
 }
 
 function step3Html(total) {
-  const m = checkout.paymentMethod;
-  const discounted = discountedTotal();
   return `
     <div class="contact-form-wrap checkout-step">
       <div class="checkout-step-label">Step ${PAYMENT_STEP} of ${TOTAL_STEPS} — Payment Method</div>
@@ -460,24 +474,13 @@ function step3Html(total) {
              </div>
            </div>`}
       <div class="payment-methods">
-        <label class="payment-method-card${m === 'cod' ? ' selected' : ''}">
-          <input type="radio" name="paymentMethod" value="cod" ${m === 'cod' ? 'checked' : ''} />
+        <div class="payment-method-card selected">
           <svg><use href="#ico-cash"/></svg>
           <div><strong>Cash on Delivery</strong><span>Pay in cash when your order arrives</span></div>
-        </label>
-        <label class="payment-method-card${m === 'mobile_money' ? ' selected' : ''}">
-          <input type="radio" name="paymentMethod" value="mobile_money" ${m === 'mobile_money' ? 'checked' : ''} />
-          <svg><use href="#ico-phone"/></svg>
-          <div><strong>Mobile Money</strong><span>MTN or Airtel Mobile Money</span></div>
-        </label>
-        <label class="payment-method-card${m === 'card' ? ' selected' : ''}">
-          <input type="radio" name="paymentMethod" value="card" ${m === 'card' ? 'checked' : ''} />
-          <svg><use href="#ico-card"/></svg>
-          <div><strong>Card</strong><span>Visa / Mastercard</span></div>
-        </label>
+        </div>
       </div>
       <button type="button" class="btn btn-primary" id="placeOrderBtn" style="width:100%;justify-content:center;margin-top:20px;">
-        ${m === 'cod' ? 'Place Order — Pay on Delivery' : 'Pay ' + formatUGX(discounted)}
+        Place Order — Pay on Delivery
       </button>
       <div class="checkout-trust-note">
         <svg><use href="#ico-shield"/></svg>
@@ -500,7 +503,7 @@ function bindStepEvents() {
   const signOutBtn = document.getElementById('checkoutSignOutBtn');
   if (signOutBtn) {
     signOutBtn.addEventListener('click', async () => {
-      await supabaseClient.auth.signOut();
+      if (window.Clerk) await window.Clerk.signOut();
       checkout.loggedInUser = null;
       checkout.customer = null;
       checkout.step = 1;
@@ -555,13 +558,6 @@ function bindStepEvents() {
     });
     document.getElementById('resendBtn').addEventListener('click', handleResendOtp);
   }
-
-  document.querySelectorAll('input[name="paymentMethod"]').forEach(input => {
-    input.addEventListener('change', () => {
-      checkout.paymentMethod = input.value;
-      renderCheckoutSidebar();
-    });
-  });
 
   const placeOrderBtn = document.getElementById('placeOrderBtn');
   if (placeOrderBtn) placeOrderBtn.addEventListener('click', handlePlaceOrder);
@@ -651,7 +647,7 @@ async function handleDetailsSubmit(e) {
   btn.disabled = true;
   btn.textContent = 'Sending code...';
 
-  const { error } = await supabaseClient.auth.signInWithOtp({ email, options: { shouldCreateUser: true } });
+  const { error } = await supabaseAuthClient.auth.signInWithOtp({ email, options: { shouldCreateUser: true } });
 
   btn.disabled = false;
   btn.textContent = 'Send Verification Code →';
@@ -682,11 +678,11 @@ async function handleOtpSubmit(e) {
   btn.disabled = true;
   btn.textContent = 'Verifying...';
 
-  const { error } = await supabaseClient.auth.verifyOtp({ email: checkout.customer.email, token: code, type: 'email' });
+  const { error } = await supabaseAuthClient.auth.verifyOtp({ email: checkout.customer.email, token: code, type: 'email' });
   // Discard the session immediately — guest checkout only, and we don't want
   // a verified customer's browser treated as "authenticated" (that role is
   // what gates the admin panel's product/order access).
-  await supabaseClient.auth.signOut().catch(() => {});
+  await supabaseAuthClient.auth.signOut().catch(() => {});
 
   btn.disabled = false;
   btn.textContent = 'Verify Code';
@@ -706,7 +702,7 @@ async function handleOtpSubmit(e) {
 async function handleResendOtp() {
   const btn = document.getElementById('resendBtn');
   btn.disabled = true;
-  const { error } = await supabaseClient.auth.signInWithOtp({ email: checkout.customer.email, options: { shouldCreateUser: true } });
+  const { error } = await supabaseAuthClient.auth.signInWithOtp({ email: checkout.customer.email, options: { shouldCreateUser: true } });
   if (error) {
     const errorBox = document.getElementById('otpError');
     errorBox.textContent = 'Could not resend code: ' + error.message;
@@ -739,16 +735,6 @@ async function handlePlaceOrder() {
   const errorBox = document.getElementById('paymentError');
   errorBox.style.display = 'none';
 
-  const selected = document.querySelector('input[name="paymentMethod"]:checked');
-  const method = selected ? selected.value : checkout.paymentMethod;
-  checkout.paymentMethod = method;
-
-  if (method !== 'cod' && (!FLW_PUBLIC_KEY || FLW_PUBLIC_KEY.includes('YOUR-PUBLIC-KEY-HERE'))) {
-    errorBox.textContent = 'Online payment isn\'t set up yet. Please choose Cash on Delivery, or contact us directly to place this order.';
-    errorBox.style.display = 'block';
-    return;
-  }
-
   const btn = document.getElementById('placeOrderBtn');
   const subtotal = cartTotal();
   const total = discountedTotal();
@@ -776,7 +762,7 @@ async function handlePlaceOrder() {
       discount_amount: checkout.coupon ? checkout.coupon.discountAmount : 0,
       currency: 'UGX',
       status: 'pending',
-      payment_provider: method === 'cod' ? 'cod' : 'flutterwave',
+      payment_provider: 'cod',
       payment_tx_ref: txRef,
       email_verified: checkout.emailVerified,
     }).select().single();
@@ -806,7 +792,7 @@ async function handlePlaceOrder() {
       couponCode: checkout.coupon ? checkout.coupon.code : null,
       discountAmount: checkout.coupon ? checkout.coupon.discountAmount : 0,
       currency: 'UGX',
-      method: method,
+      method: 'cod',
       customerName: customer.name,
       customerEmail: customer.email,
       loggedIn: !!checkout.loggedInUser,
@@ -820,57 +806,13 @@ async function handlePlaceOrder() {
       localStorage.setItem('ndet_pending_claim', JSON.stringify({ ref: txRef, email: customer.email }));
     }
 
-    if (method === 'cod') {
-      // Fallback trigger for order-confirmation/admin-alert emails — the
-      // reliable path is a Database Webhook on `orders` (see SETUP.md), this
-      // just means emails still go out even before that's configured. Fire
-      // ­and-forget: never block the redirect on this.
-      fetch(`${SUPABASE_URL}/functions/v1/send-order-notifications`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ order_id: order.id }),
-      }).catch(() => {});
-      clearCart(); checkout.coupon = null;
-      window.location.href = '/order-confirmed/?ref=' + encodeURIComponent(txRef) + '&method=cod';
-      return;
-    }
-
-    btn.disabled = false;
-    btn.textContent = originalLabel;
-
-    FlutterwaveCheckout({
-      public_key: FLW_PUBLIC_KEY,
-      tx_ref: txRef,
-      amount: total,
-      currency: 'UGX',
-      payment_options: method === 'card' ? 'card' : 'mobilemoneyuganda',
-      customer: { email: customer.email, phone_number: customer.phone, name: customer.name },
-      customizations: {
-        title: 'ND Electronic Technologies Ltd',
-        description: 'Order ' + txRef,
-      },
-      callback: async function (payment) {
-        await fetch(`${SUPABASE_URL}/functions/v1/verify-payment`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tx_ref: txRef, transaction_id: payment.transaction_id }),
-        }).catch(() => {});
-        // Fallback trigger for order emails, same reasoning as the COD path
-        // above — verify-payment has already flipped status to "paid" by
-        // the time this runs, so the customer gets the "confirmed" email
-        // (not just an admin alert) as soon as this call lands.
-        fetch(`${SUPABASE_URL}/functions/v1/send-order-notifications`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ order_id: order.id }),
-        }).catch(() => {});
-        clearCart(); checkout.coupon = null;
-        window.location.href = '/order-confirmed/?ref=' + encodeURIComponent(txRef);
-      },
-      onclose: function () {
-        // Order stays "pending" — visible in the admin Orders page if the customer wants to retry/be followed up on.
-      },
-    });
+    // Fallback trigger for order-confirmation/admin-alert emails — the
+    // reliable path is a Database Webhook on `orders` (see SETUP.md), this
+    // just means emails still go out even before that's configured. Fire
+    // ­and-forget: never block the redirect on this.
+    notifyOrderStatus(order.id);
+    clearCart(); checkout.coupon = null;
+    window.location.href = '/order-confirmed/?ref=' + encodeURIComponent(txRef) + '&method=cod';
   } catch (err) {
     errorBox.textContent = err.message || 'Something went wrong placing your order.';
     errorBox.style.display = 'block';
@@ -881,30 +823,35 @@ async function handlePlaceOrder() {
 
 async function initCheckout() {
   try {
-    // Before anything else: if this is a signed-in customer whose cart lives
-    // on another device (or was empty locally), pull it down so the very
-    // first render on this page already shows the right items.
+    // Customer accounts run on Clerk (see SETUP.md section 10) — load it
+    // before anything below tries to detect a signed-in customer, since
+    // getCurrentCustomer() (in cart.js) only sees a Clerk session once
+    // window.Clerk is actually loaded.
+    try { await loadClerk(); } catch { /* falls back to guest checkout below */ }
+
+    // If this is a signed-in customer whose cart lives on another device
+    // (or was empty locally), pull it down so the very first render on
+    // this page already shows the right items.
     await hydrateCartFromServer();
 
-    const { data: { session } } = await supabaseClient.auth.getSession();
-    if (session) {
-      checkout.loggedInUser = session.user;
-      const meta = session.user.user_metadata || {};
+    const customer = await getCurrentCustomer();
+    if (customer) {
+      checkout.loggedInUser = customer;
 
       // maybeSingle (not single) — a profile row with no name/phone saved
-      // yet must fall through to the signup metadata below, not throw and
+      // yet must fall through to Clerk's own name below, not throw and
       // skip prefilling entirely.
       let profile = null;
       try {
-        const { data } = await supabaseClient.from('profiles').select('full_name, phone').eq('id', session.user.id).maybeSingle();
+        const { data } = await supabaseClient.from('profiles').select('full_name, phone').eq('id', customer.id).maybeSingle();
         profile = data;
       } catch {
-        // fall through to signup metadata below
+        // fall through to Clerk's own name below
       }
 
       let addresses = [];
       try {
-        const { data } = await supabaseClient.from('addresses').select('*').eq('customer_id', session.user.id).order('is_default', { ascending: false });
+        const { data } = await supabaseClient.from('addresses').select('*').eq('customer_id', customer.id).order('is_default', { ascending: false });
         addresses = data || [];
       } catch {
         // no saved addresses available — not fatal, checkout still works
@@ -913,9 +860,9 @@ async function initCheckout() {
       const defaultAddress = checkout.savedAddresses.find(a => a.is_default) || checkout.savedAddresses[0];
 
       checkout.customer = {
-        name: (profile && profile.full_name) || meta.full_name || '',
-        phone: (profile && profile.phone) || meta.phone || '',
-        email: session.user.email,
+        name: (profile && profile.full_name) || customer.fullName || '',
+        phone: (profile && profile.phone) || '',
+        email: customer.email,
         address: defaultAddress ? defaultAddress.address_text : '',
         notes: '',
       };

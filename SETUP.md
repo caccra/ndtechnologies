@@ -124,15 +124,16 @@ as paid. This function lives in `supabase/functions/verify-payment/`.
 
 ---
 
-## 6. Order confirmation & admin notification emails
+## 6. Order confirmation, status-update & admin notification emails
 
-Once an order is placed, two emails go out automatically: a confirmation to
-the customer (once it's actually confirmed — immediately for Cash on
-Delivery, or once payment clears for Mobile Money/card), and a "new order"
-alert to you, so you know to start preparing it. This is separate from the
-checkout verification code in section 4 — that's Supabase's own auth email
-sender; these are proper order emails sent through Resend, a dedicated
-transactional email service.
+Once an order is placed, three kinds of email go out automatically:
+- A confirmation to the customer, once the order is actually confirmed (immediately for Cash on Delivery, or once payment clears for Mobile Money/card).
+- A "new order" alert to you, the moment the order is placed, so you know to start preparing it.
+- A "your order is now ..." status-update email — sent to **both** the customer and everyone in `ADMIN_NOTIFY_EMAIL` — every time an order moves to In Progress, Dispatched, Delivered, Failed or Cancelled (from the admin Orders page, or from a customer cancelling their own pending order).
+
+This is separate from the checkout verification code in section 4 — that's
+Supabase's own auth email sender; these are proper order emails sent through
+Resend, a dedicated transactional email service.
 
 1. Go to [resend.com](https://resend.com) → sign up (free tier: 3,000 emails/month, comfortably enough for a small shop).
 2. **Domains → Add Domain** → add `ndelectronictechnologies.com` and follow their DNS verification steps (adds a couple of DNS records at wherever your domain is registered). Until this is verified, you can still test using Resend's shared `onboarding@resend.dev` sender address.
@@ -144,13 +145,14 @@ transactional email service.
    supabase secrets set RESEND_FROM="ND Electronic Technologies <orders@ndelectronictechnologies.com>"
    supabase secrets set ADMIN_NOTIFY_EMAIL=info@ndelectronictechnologies.com,sales@ndelectronictechnologies.com
    ```
-   (`RESEND_FROM` must use your verified domain from step 2 — use `onboarding@resend.dev` there instead if you're still testing before DNS verification finishes. `ADMIN_NOTIFY_EMAIL` accepts one address or several, comma-separated.)
+   (`RESEND_FROM` must use your verified domain from step 2 — use `onboarding@resend.dev` there instead if you're still testing before DNS verification finishes. `ADMIN_NOTIFY_EMAIL` accepts one address or several, comma-separated — make sure `sales@ndelectronictechnologies.com` is in the list, since it's the address that should see every status change, not just new orders.)
 5. `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are the same ones you already set for `verify-payment` in step 5 — no need to set them again for this function.
 
-This already works via a fallback call built into `assets/checkout.js` — no
-further setup required to start receiving emails. For a more reliable setup
-that doesn't depend on the customer's browser staying open (recommended
-before relying on this for real orders):
+This already works via fallback calls built into `assets/checkout.js`,
+`admin/orders/index.html` and `account/index.html` — no further setup
+required to start receiving emails. For a more reliable setup that doesn't
+depend on the customer's or staff member's browser staying open
+(recommended before relying on this for real orders):
 
 6. In Supabase: **Database → Webhooks → Create a new webhook**.
 7. Create one for **INSERT** on the `orders` table, and another for **UPDATE** on the `orders` table — both calling the `send-order-notifications` Edge Function. (The function figures out on its own what's changed and whether an email is actually due — see the comments at the top of `supabase/functions/send-order-notifications/index.ts`.)
@@ -214,6 +216,36 @@ address field still works as a plain text box — it just won't show a map.
 
 ---
 
+## 10. Clerk for customer login & signup (in progress)
+
+Customer accounts (`/account/register/`, `/account/login/`, password reset,
+and checkout's "already logged in" fast-path) are being migrated from
+Supabase's own auth to [Clerk](https://clerk.com). The **admin panel login
+stays on Supabase Auth, unchanged** — this only affects customer accounts.
+
+Why this needs care: every table's Row Level Security policy in
+`supabase/schema.sql` (orders, addresses, wishlist, cart, reviews, coupons —
+all of it) decides "is this your data" using Supabase's `auth.uid()`. The
+approach here is Supabase's official **Third-Party Auth** integration with
+Clerk, which makes Supabase trust and validate Clerk's own session tokens —
+`auth.uid()` keeps working exactly as every existing policy expects, with no
+RLS rewrite needed. Supabase's own signup flow won't run for Clerk users
+though, so the `handle_new_user()` trigger that creates each customer's
+`profiles` row needs a replacement (a Clerk webhook calling a new Supabase
+Edge Function) — that piece lands once the account/login pages themselves
+are rebuilt on Clerk.
+
+**Setup, before any code changes:**
+
+1. Go to [clerk.com](https://clerk.com) → sign up → **Create application**. Name it e.g. "ND Electronic Technologies".
+2. Pick sign-in options — Email + Password matches the current site's flow; other methods (Google, phone, etc.) can be added later without breaking anything.
+3. **Configure → API Keys** (left sidebar): copy the **Publishable key** (starts with `pk_test_...` while in development, `pk_live_...` once you switch Clerk to production).
+4. Same API Keys page (or **Configure → Domains**): note the **Frontend API URL** — looks like `https://your-app-name.clerk.accounts.dev` in development, or your own subdomain once Clerk is in production. This is what Supabase needs to trust Clerk's tokens.
+5. In Supabase: **Authentication → Sign In / Providers → Third Party Auth** → add **Clerk** → paste in the Frontend API URL from step 4. (Supabase's dashboard labels can shift between versions — if this exact path doesn't match what you see, search "Third Party Auth" in the Supabase dashboard, or follow [Supabase's Clerk integration guide](https://supabase.com/docs/guides/auth/third-party/clerk) directly, which is kept current.)
+6. Send over the **Publishable key** and **Frontend API URL** from steps 3–4 — those are what's needed to wire up the account pages next.
+
+---
+
 ## Where things live
 
 | What | Where |
@@ -221,7 +253,7 @@ address field still works as a plain text box — it just won't show a map.
 | Product/order database, admin login | Supabase (cloud, free tier) |
 | Product photos | Supabase Storage (`product-images` bucket) |
 | Admin panel | `/admin/` (dashboard), `/admin/login/`, `/admin/products/`, `/admin/orders/`, `/admin/leads/`, `/admin/customers/` |
-| Customer accounts | `/account/register.html`, `/account/login.html`, `/account/` (dashboard) |
+| Customer accounts | `/account/register/`, `/account/login/`, `/account/` (dashboard) — login/signup migrating to Clerk, see section 10 |
 | Public shop & checkout | `/shop.html`, `/product.html`, `/cart.html` (`assets/checkout.js`) |
 | Email verification (OTP) | Supabase Auth (built-in, or Custom SMTP for production) |
 | Payment | Flutterwave (Mobile Money + cards) or Cash on Delivery |
